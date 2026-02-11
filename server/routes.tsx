@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSchema } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated } from "./auth";
 import { registerAnalyticsRoutes } from "./ai/analytics-routes";
-import { createBackup, getBackupHistory, startBackupScheduler } from "./backup";
+import { createBackup, getBackupHistory } from "./backup";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -274,6 +274,30 @@ export async function registerRoutes(
     }
   });
 
+  // Vercel Cron (or any external scheduler) endpoint
+  // Protect with CRON_SECRET: Authorization: Bearer <CRON_SECRET>
+  app.post("/api/backup/cron", async (req, res) => {
+    const cronSecret = process.env.CRON_SECRET;
+    if (!cronSecret) {
+      return res.status(500).json({ error: "CRON_SECRET not configured" });
+    }
+
+    const authHeader = req.header("authorization") || "";
+    const expected = `Bearer ${cronSecret}`;
+
+    if (authHeader !== expected) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const backup = await createBackup("scheduled");
+      res.json({ success: true, createdAt: backup.createdAt, recordCount: backup.metadata.totalRecords });
+    } catch (error) {
+      console.error("Cron backup error:", error);
+      res.status(500).json({ error: "Failed to create scheduled backup" });
+    }
+  });
+
   app.get("/api/backup/history", isAuthenticated, async (_req, res) => {
     try {
       const history = await getBackupHistory();
@@ -282,9 +306,6 @@ export async function registerRoutes(
       res.status(500).json({ error: "Failed to fetch backup history" });
     }
   });
-
-  // Start automated backup scheduler
-  startBackupScheduler();
 
   return httpServer;
 }
