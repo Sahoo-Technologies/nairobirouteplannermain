@@ -732,7 +732,7 @@ var init_database_storage = __esm({
   }
 });
 
-// api/index.ts
+// server/vercel-entry.ts
 import express from "express";
 
 // server/routes.ts
@@ -3100,7 +3100,7 @@ async function registerRoutes(httpServer, app2) {
   return httpServer;
 }
 
-// api/index.ts
+// server/vercel-entry.ts
 import { createServer } from "http";
 var app = express();
 app.use(

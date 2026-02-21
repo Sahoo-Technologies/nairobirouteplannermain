@@ -18,7 +18,7 @@ const allDeps = [
 ];
 
 await build({
-  entryPoints: ["api/index.ts"],
+  entryPoints: ["server/vercel-entry.ts"],
   platform: "node",
   bundle: true,
   format: "esm",
