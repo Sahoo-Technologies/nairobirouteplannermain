@@ -414,13 +414,11 @@ export function isAdmin(req: Request, res: Response, next: NextFunction) {
 
 // Helper function to hash password
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
+  return bcrypt.hash(password, 12);
 }
 
 // Helper function to create/update admin user
 export async function ensureAdminUser(email: string, password: string) {
-  const passwordHash = await hashPassword(password);
-  
   // Check if user exists
   const [existingUser] = await db
     .select()
@@ -429,17 +427,24 @@ export async function ensureAdminUser(email: string, password: string) {
     .limit(1);
 
   if (existingUser) {
-    // Update existing user with password and admin role
-    await db
-      .update(users)
-      .set({ 
-        passwordHash, 
-        role: "admin",
-        updatedAt: new Date()
-      })
-      .where(eq(users.email, email.toLowerCase()));
+    // Only update if password changed or role isn't admin (avoid unnecessary writes)
+    const passwordMatch = existingUser.passwordHash
+      ? await bcrypt.compare(password, existingUser.passwordHash)
+      : false;
+    if (!passwordMatch || existingUser.role !== "admin") {
+      const passwordHash = await hashPassword(password);
+      await db
+        .update(users)
+        .set({ 
+          passwordHash, 
+          role: "admin",
+          updatedAt: new Date()
+        })
+        .where(eq(users.email, email.toLowerCase()));
+    }
   } else {
     // Create new admin user
+    const passwordHash = await hashPassword(password);
     await db.insert(users).values({
       email: email.toLowerCase(),
       passwordHash,

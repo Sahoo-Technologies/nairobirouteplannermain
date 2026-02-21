@@ -77,7 +77,8 @@ export async function sendPasswordResetEmail(
       `,
     });
 
-    console.log(`Password reset email sent to ${email}`);
+    // Log confirmation without PII (email address)
+    console.log("Password reset email sent successfully");
     return true;
   } catch (error) {
     console.error("Failed to send password reset email:", error);

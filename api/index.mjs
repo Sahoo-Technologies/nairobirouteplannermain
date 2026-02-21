@@ -1356,7 +1356,7 @@ async function sendPasswordResetEmail(email, resetUrl) {
         Veew Distributors - Route Optimization System
       `
     });
-    console.log(`Password reset email sent to ${email}`);
+    console.log("Password reset email sent successfully");
     return true;
   } catch (error) {
     console.error("Failed to send password reset email:", error);
@@ -1635,18 +1635,22 @@ function isAdmin(req, res, next) {
   });
 }
 async function hashPassword(password) {
-  return bcrypt.hash(password, 10);
+  return bcrypt.hash(password, 12);
 }
 async function ensureAdminUser(email, password) {
-  const passwordHash = await hashPassword(password);
   const [existingUser] = await db.select().from(users).where(eq2(users.email, email.toLowerCase())).limit(1);
   if (existingUser) {
-    await db.update(users).set({
-      passwordHash,
-      role: "admin",
-      updatedAt: /* @__PURE__ */ new Date()
-    }).where(eq2(users.email, email.toLowerCase()));
+    const passwordMatch = existingUser.passwordHash ? await bcrypt.compare(password, existingUser.passwordHash) : false;
+    if (!passwordMatch || existingUser.role !== "admin") {
+      const passwordHash = await hashPassword(password);
+      await db.update(users).set({
+        passwordHash,
+        role: "admin",
+        updatedAt: /* @__PURE__ */ new Date()
+      }).where(eq2(users.email, email.toLowerCase()));
+    }
   } else {
+    const passwordHash = await hashPassword(password);
     await db.insert(users).values({
       email: email.toLowerCase(),
       passwordHash,
@@ -2335,13 +2339,13 @@ async function registerRoutes(httpServer, app2) {
   if (allowedOrigins) {
     app2.use(cors({ origin: allowedOrigins, credentials: true }));
   }
+  const isProd = process.env.NODE_ENV === "production";
   app2.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-          // needed for Vite HMR in dev
+          scriptSrc: isProd ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           imgSrc: ["'self'", "data:", "https:", "blob:"],
@@ -2355,9 +2359,22 @@ async function registerRoutes(httpServer, app2) {
       },
       crossOriginEmbedderPolicy: false,
       // needed for map tile images
-      referrerPolicy: { policy: "strict-origin-when-cross-origin" }
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      strictTransportSecurity: {
+        maxAge: 63072e3,
+        // 2 years
+        includeSubDomains: true,
+        preload: true
+      }
     })
   );
+  app2.use((_req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    );
+    next();
+  });
   app2.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1e3, max: 10, message: { error: "Too many login attempts, try again later" } }));
   app2.use("/api/auth/forgot-password", rateLimit({ windowMs: 15 * 60 * 1e3, max: 5, message: { error: "Too many reset requests, try again later" } }));
   app2.use("/api/", rateLimit({ windowMs: 60 * 1e3, max: 120, message: { error: "Rate limit exceeded" } }));
@@ -3106,12 +3123,13 @@ import { createServer } from "http";
 var app = express();
 app.use(
   express.json({
+    limit: "1mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     }
   })
 );
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "1mb" }));
 var initialized = false;
 var initPromise = (async () => {
   if (initialized) return;

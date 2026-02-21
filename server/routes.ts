@@ -52,12 +52,13 @@ export async function registerRoutes(
   }
 
   // Security headers with Content Security Policy
+  const isProd = process.env.NODE_ENV === "production";
   app.use(
     helmet({
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // needed for Vite HMR in dev
+          scriptSrc: isProd ? ["'self'"] : ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           imgSrc: ["'self'", "data:", "https:", "blob:"],
@@ -71,8 +72,22 @@ export async function registerRoutes(
       },
       crossOriginEmbedderPolicy: false, // needed for map tile images
       referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      strictTransportSecurity: {
+        maxAge: 63072000, // 2 years
+        includeSubDomains: true,
+        preload: true,
+      },
     })
   );
+
+  // Permissions-Policy: restrict sensitive browser features
+  app.use((_req, res, next) => {
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()"
+    );
+    next();
+  });
 
   // Rate limiting
   app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: "Too many login attempts, try again later" } }));
