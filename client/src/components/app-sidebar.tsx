@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain, Database, GitBranch, ClipboardList, PackageCheck, FileBarChart, Users, Settings } from "lucide-react";
+import { LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain, Database, GitBranch, ClipboardList, PackageCheck, FileBarChart, Users, Settings, FileText } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -214,6 +214,12 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-3">
+        <div className="mb-2">
+          <Link href="/privacy-policy" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1">
+            <FileText className="h-3 w-3" />
+            Privacy Policy &amp; Data Protection
+          </Link>
+        </div>
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             {user?.profileImageUrl && <AvatarImage src={user.profileImageUrl} alt={userName} />}

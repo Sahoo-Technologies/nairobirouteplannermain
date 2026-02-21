@@ -2,6 +2,8 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import helmet from "helmet";
+import cors from "cors";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSchema,
   insertProductSchema, insertSupplierSchema, insertProcurementSchema,
@@ -41,8 +43,36 @@ export async function registerRoutes(
   // Set up authentication BEFORE other routes
   await setupAuth(app);
 
-  // Security headers
-  app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled for SPA
+  // CORS — restrict to same-origin in production
+  const allowedOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
+    : undefined; // undefined = same-origin only (no CORS header sent)
+  if (allowedOrigins) {
+    app.use(cors({ origin: allowedOrigins, credentials: true }));
+  }
+
+  // Security headers with Content Security Policy
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // needed for Vite HMR in dev
+          styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+          fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+          imgSrc: ["'self'", "data:", "https:", "blob:"],
+          connectSrc: ["'self'", "https:", "wss:"],
+          frameSrc: ["'none'"],
+          objectSrc: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
+        },
+      },
+      crossOriginEmbedderPolicy: false, // needed for map tile images
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    })
+  );
 
   // Rate limiting
   app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: "Too many login attempts, try again later" } }));
@@ -52,7 +82,7 @@ export async function registerRoutes(
   registerAuthRoutes(app);
   
   // Ensure admin user exists with correct credentials
-  const adminEmail = process.env.ADMIN_EMAIL || "hertlock3@gmail.com";
+  const adminEmail = process.env.ADMIN_EMAIL;
   const adminPassword = process.env.AI_ADMIN_PASSWORD;
   if (adminPassword) {
     await ensureAdminUser(adminEmail, adminPassword);
@@ -621,6 +651,12 @@ export async function registerRoutes(
       const { email, password, firstName, lastName, role } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
 
+      // Password complexity: min 8, uppercase, lowercase, digit
+      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ error: "Password must contain uppercase, lowercase, and a digit" });
+      }
+
       // Check if user already exists
       const [existing] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
       if (existing) return res.status(409).json({ error: "A user with this email already exists" });
@@ -675,7 +711,7 @@ export async function registerRoutes(
   const ENV_KEYS = [
     "DATABASE_URL", "SESSION_SECRET", "ADMIN_EMAIL", "AI_ADMIN_PASSWORD",
     "CRON_SECRET", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM",
-    "AI_INTEGRATIONS_OPENAI_API_KEY", "AI_INTEGRATIONS_OPENAI_BASE_URL",
+    "AI_INTEGRATIONS_OPENAI_API_KEY", "AI_INTEGRATIONS_OPENAI_BASE_URL", "CORS_ORIGIN",
   ];
 
   app.get("/api/admin/settings", isAdmin, (_req, res) => {
@@ -702,7 +738,9 @@ export async function registerRoutes(
         // Skip masked values (unchanged)
         if (typeof value === "string" && value.startsWith("****")) continue;
         if (typeof value === "string" && value.trim() !== "") {
-          process.env[key] = value.trim();
+          // Sanitize: strip newlines/carriage returns to prevent env injection
+          const sanitized = value.trim().replace(/[\r\n]/g, "");
+          process.env[key] = sanitized;
           applied.push(key);
         }
       }
@@ -754,7 +792,10 @@ export async function registerRoutes(
     const authHeader = req.header("authorization") || "";
     const expected = `Bearer ${cronSecret}`;
 
-    if (authHeader !== expected) {
+    // Timing-safe comparison to prevent timing attacks
+    const authBuf = Buffer.from(authHeader);
+    const expectedBuf = Buffer.from(expected);
+    if (authBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(authBuf, expectedBuf)) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 

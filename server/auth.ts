@@ -32,6 +32,7 @@ export async function setupAuth(app: Express) {
         tableName: "sessions",
         createTableIfMissing: false,
       }),
+      name: "__veew_sid", // Custom cookie name (avoid default connect.sid fingerprinting)
       secret: sessionSecret,
       resave: false,
       saveUninitialized: false,
@@ -77,12 +78,24 @@ export function registerAuthRoutes(app: Express) {
         return res.status(401).json({ error: "Invalid email or password" });
       }
 
-      // Set session
-      req.session.userId = user.id;
-
-      // Return user data without password hash
-      const { passwordHash, ...userData } = user;
-      res.json(userData);
+      // Regenerate session to prevent session fixation attacks
+      const oldSession = req.session;
+      req.session.regenerate((err) => {
+        if (err) {
+          console.error("Session regeneration error:", err);
+          return res.status(500).json({ error: "Login failed" });
+        }
+        req.session.userId = user.id;
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error("Session save error:", saveErr);
+            return res.status(500).json({ error: "Login failed" });
+          }
+          // Return user data without password hash
+          const { passwordHash, ...userData } = user;
+          res.json(userData);
+        });
+      });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ error: "Login failed" });
@@ -95,7 +108,7 @@ export function registerAuthRoutes(app: Express) {
       if (err) {
         return res.status(500).json({ error: "Logout failed" });
       }
-      res.clearCookie("connect.sid");
+      res.clearCookie("__veew_sid");
       res.json({ success: true });
     });
   });
@@ -236,8 +249,12 @@ export function registerAuthRoutes(app: Express) {
         return res.status(400).json({ error: "Token and password are required" });
       }
 
+      // Password complexity: min 8 chars, at least 1 uppercase, 1 lowercase, 1 digit
       if (password.length < 8) {
         return res.status(400).json({ error: "Password must be at least 8 characters" });
+      }
+      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+        return res.status(400).json({ error: "Password must contain uppercase, lowercase, and a digit" });
       }
 
       // Hash the incoming token to compare with stored hash
@@ -279,6 +296,95 @@ export function registerAuthRoutes(app: Express) {
     } catch (error) {
       console.error("Reset password error:", error);
       res.status(500).json({ error: "Failed to reset password" });
+    }
+  });
+
+  // ============ DATA SUBJECT RIGHTS (Kenya DPA 2019) ============
+
+  // Export all personal data (Right of Access / Portability — Sections 26-28)
+  app.get("/api/auth/my-data", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    try {
+      const userId = req.session.userId;
+
+      // Fetch user profile (excluding password hash)
+      const [user] = await db
+        .select({
+          id: users.id,
+          email: users.email,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          profileImageUrl: users.profileImageUrl,
+          createdAt: users.createdAt,
+          updatedAt: users.updatedAt,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        exportDate: new Date().toISOString(),
+        dataController: "Veew Distributors",
+        dataSubject: user,
+        note: "This export contains all personal data held about you in compliance with the Kenya Data Protection Act 2019.",
+      });
+    } catch (error) {
+      console.error("Data export error:", error);
+      res.status(500).json({ error: "Failed to export data" });
+    }
+  });
+
+  // Delete account (Right to Erasure — Section 26(d))
+  app.delete("/api/auth/delete-account", async (req: Request, res: Response) => {
+    if (!req.session.userId) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
+    try {
+      const userId = req.session.userId;
+
+      // Check user exists and is not the last admin
+      const [user] = await db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      if (user.role === "admin") {
+        // Ensure at least one admin remains
+        const allAdmins = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.role, "admin"));
+        if (allAdmins.length <= 1) {
+          return res.status(400).json({ error: "Cannot delete the last admin account" });
+        }
+      }
+
+      // Delete password reset tokens for this user
+      await db.delete(passwordResetTokens).where(eq(passwordResetTokens.userId, userId));
+
+      // Delete the user
+      await db.delete(users).where(eq(users.id, userId));
+
+      // Destroy session
+      req.session.destroy(() => {});
+      res.clearCookie("__veew_sid");
+
+      res.json({ success: true, message: "Account and personal data deleted" });
+    } catch (error) {
+      console.error("Account deletion error:", error);
+      res.status(500).json({ error: "Failed to delete account" });
     }
   });
 }

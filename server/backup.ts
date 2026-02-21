@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { shops, drivers, routes, targets, backups, routeOptimizations, demandForecasts, driverInsights, analyticsReports, users, sessions, passwordResetTokens } from "@shared/schema";
+import { shops, drivers, routes, targets, backups, routeOptimizations, demandForecasts, driverInsights, analyticsReports, users } from "@shared/schema";
 import { desc } from "drizzle-orm";
 
 interface BackupData {
@@ -8,8 +8,6 @@ interface BackupData {
   type: "manual" | "scheduled";
   data: {
     users: any[];
-    sessions: any[];
-    passwordResetTokens: any[];
     shops: any[];
     drivers: any[];
     routes: any[];
@@ -27,6 +25,7 @@ interface BackupData {
 }
 
 export async function createBackup(type: "manual" | "scheduled" = "manual"): Promise<BackupData> {
+  // Exclude sensitive data: sessions and password reset tokens are never backed up
   const allUsers = await db.select({
     id: users.id,
     email: users.email,
@@ -36,14 +35,6 @@ export async function createBackup(type: "manual" | "scheduled" = "manual"): Pro
     createdAt: users.createdAt,
     updatedAt: users.updatedAt,
   }).from(users);
-  const allSessions = await db.select().from(sessions);
-  const allPasswordResetTokens = await db.select({
-    id: passwordResetTokens.id,
-    userId: passwordResetTokens.userId,
-    expiresAt: passwordResetTokens.expiresAt,
-    used: passwordResetTokens.used,
-    createdAt: passwordResetTokens.createdAt,
-  }).from(passwordResetTokens);
   const allShops = await db.select().from(shops);
   const allDrivers = await db.select().from(drivers);
   const allRoutes = await db.select().from(routes);
@@ -56,8 +47,6 @@ export async function createBackup(type: "manual" | "scheduled" = "manual"): Pro
 
   const tables = {
     users: allUsers.length,
-    sessions: allSessions.length,
-    passwordResetTokens: allPasswordResetTokens.length,
     shops: allShops.length,
     drivers: allDrivers.length,
     routes: allRoutes.length,
@@ -77,8 +66,6 @@ export async function createBackup(type: "manual" | "scheduled" = "manual"): Pro
     type,
     data: {
       users: allUsers,
-      sessions: allSessions,
-      passwordResetTokens: allPasswordResetTokens,
       shops: allShops,
       drivers: allDrivers,
       routes: allRoutes,

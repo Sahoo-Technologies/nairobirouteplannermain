@@ -103,6 +103,11 @@ export default function LoginPage() {
           <p className="mt-4 text-center text-xs text-muted-foreground">
             Huruma / Mathare Route Optimization System
           </p>
+          <p className="mt-2 text-center text-xs">
+            <Link href="/privacy-policy" className="text-primary hover:underline">
+              Privacy Policy &amp; Data Protection
+            </Link>
+          </p>
         </CardContent>
       </Card>
     </div>

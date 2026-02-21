@@ -9,6 +9,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
 import { lazy, Suspense } from "react";
+import { CookieConsentBanner } from "@/components/cookie-consent";
 
 // Eagerly loaded (always visible)
 import NotFound from "@/pages/not-found";
@@ -31,6 +32,7 @@ const DispatchPage = lazy(() => import("@/pages/dispatch"));
 const ReportsPage = lazy(() => import("@/pages/reports"));
 const AdminUsersPage = lazy(() => import("@/pages/admin-users"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
+const PrivacyPolicyPage = lazy(() => import("@/pages/privacy-policy"));
 
 function AuthenticatedRouter() {
   return (
@@ -49,6 +51,7 @@ function AuthenticatedRouter() {
       <Route path="/reports" component={ReportsPage} />
       <Route path="/admin/users" component={AdminUsersPage} />
       <Route path="/admin/settings" component={SettingsPage} />
+      <Route path="/privacy-policy" component={PrivacyPolicyPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -93,11 +96,14 @@ function LoadingScreen() {
 
 function UnauthenticatedRouter() {
   return (
-    <Switch>
-      <Route path="/forgot-password" component={ForgotPasswordPage} />
-      <Route path="/reset-password" component={ResetPasswordPage} />
-      <Route component={LoginPage} />
-    </Switch>
+    <Suspense fallback={<LoadingScreen />}>
+      <Switch>
+        <Route path="/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/reset-password" component={ResetPasswordPage} />
+        <Route path="/privacy-policy" component={PrivacyPolicyPage} />
+        <Route component={LoginPage} />
+      </Switch>
+    </Suspense>
   );
 }
 
@@ -120,6 +126,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AppContent />
+        <CookieConsentBanner />
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

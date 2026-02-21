@@ -49,6 +49,12 @@ const SECTIONS = [
     description: "Cron secret for automated backups",
     keys: ["CRON_SECRET"],
   },
+  {
+    title: "Security",
+    icon: Key,
+    description: "CORS allowed origins (comma-separated)",
+    keys: ["CORS_ORIGIN"],
+  },
 ];
 
 const SECRET_KEYS = new Set([
