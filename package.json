@@ -10,7 +10,7 @@
     "dev": "tsx server/index.ts",
     "build": "tsx script/builds.tsx",
     "start": "node dist/index.cjs",
-    "vercel-build": "vite build",
+    "vercel-build": "vite build && node script/vercel-api-build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
