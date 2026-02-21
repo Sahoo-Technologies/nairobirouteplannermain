@@ -24,6 +24,15 @@ export async function apiRequest(
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
+
+/** Unwrap paginated `{ data, pagination }` envelope or return as-is for plain arrays/objects */
+function unwrapPaginated(json: unknown): unknown {
+  if (json && typeof json === "object" && !Array.isArray(json) && "data" in json && "pagination" in json) {
+    return (json as { data: unknown }).data;
+  }
+  return json;
+}
+
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
@@ -38,16 +47,26 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    const json = await res.json();
+    return unwrapPaginated(json) as Awaited<T>;
   };
+
+/** Fetch a list endpoint, auto-unwrapping paginated envelopes */
+export async function fetchList<T = unknown>(url: string): Promise<T[]> {
+  const res = await fetch(url, { credentials: "include" });
+  if (!res.ok) throw new Error(`${res.status}: ${res.statusText}`);
+  const json = await res.json();
+  const data = unwrapPaginated(json);
+  return (Array.isArray(data) ? data : []) as T[];
+}
 
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchOnWindowFocus: true,
+      staleTime: 30 * 1000, // 30 seconds before considered stale
       retry: false,
     },
     mutations: {

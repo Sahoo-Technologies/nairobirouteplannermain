@@ -290,6 +290,22 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
   next();
 }
 
+export function isAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+  // Look up user role from the database
+  const userId = req.session.userId;
+  db.select({ role: users.role }).from(users).where(eq(users.id, userId)).then((rows) => {
+    if (!rows.length || rows[0].role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    next();
+  }).catch(() => {
+    res.status(500).json({ error: "Authorization check failed" });
+  });
+}
+
 // Helper function to hash password
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 10);

@@ -8,22 +8,27 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { Skeleton } from "@/components/ui/skeleton";
+import { lazy, Suspense } from "react";
+
+// Eagerly loaded (always visible)
 import NotFound from "@/pages/not-found";
-import Dashboard from "@/pages/dashboard";
-import MapPage from "@/pages/map-page";
-import ShopsPage from "@/pages/shop";
-import DriversPage from "@/pages/drivers";
-import RoutesPage from "@/pages/routes";
-import TargetsPage from "@/pages/targets";
-import AnalyticsPage from "@/pages/analytics";
-import BackupPage from "@/pages/backup";
-import ProcessMapPage from "@/pages/process-map";
-import OrdersPage from "@/pages/orders";
-import DispatchPage from "@/pages/dispatch";
-import ReportsPage from "@/pages/reports";
 import LoginPage from "@/pages/login";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
+import Dashboard from "@/pages/dashboard";
+
+// Lazy-loaded pages (code-split)
+const MapPage = lazy(() => import("@/pages/map-page"));
+const ShopsPage = lazy(() => import("@/pages/shop"));
+const DriversPage = lazy(() => import("@/pages/drivers"));
+const RoutesPage = lazy(() => import("@/pages/routes"));
+const TargetsPage = lazy(() => import("@/pages/targets"));
+const AnalyticsPage = lazy(() => import("@/pages/analytics"));
+const BackupPage = lazy(() => import("@/pages/backup"));
+const ProcessMapPage = lazy(() => import("@/pages/process-map"));
+const OrdersPage = lazy(() => import("@/pages/orders"));
+const DispatchPage = lazy(() => import("@/pages/dispatch"));
+const ReportsPage = lazy(() => import("@/pages/reports"));
 
 function AuthenticatedRouter() {
   return (
@@ -61,7 +66,9 @@ function AuthenticatedApp() {
             <ThemeToggle />
           </header>
           <main className="flex-1 overflow-auto">
-            <AuthenticatedRouter />
+            <Suspense fallback={<LoadingScreen />}>
+              <AuthenticatedRouter />
+            </Suspense>
           </main>
         </SidebarInset>
       </div>

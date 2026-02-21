@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      include: ["server/**/*.tsx", "shared/**/*.tsx", "client/src/lib/**/*.tsx"],
+      include: ["server/**/*.ts", "shared/**/*.ts", "client/src/lib/**/*.tsx"],
     },
     alias: {
       "@": path.resolve(__dirname, "client/src"),

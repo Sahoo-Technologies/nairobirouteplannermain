@@ -1,5 +1,7 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
+import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 import { storage } from "./storage";
 import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSchema,
   insertProductSchema, insertSupplierSchema, insertProcurementSchema,
@@ -7,9 +9,24 @@ import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSc
   insertDispatchSchema, insertParcelSchema, insertPaymentSchema,
   insertStockMovementSchema, insertInventorySchema
 } from "@shared/schema";
-import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated } from "./auth";
+import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin } from "./auth";
 import { registerAnalyticsRoutes } from "./ai/analytics-routes";
 import { createBackup, getBackupHistory } from "./backup";
+
+// ============ PAGINATION HELPER ============
+function parsePagination(req: Request): { page: number; limit: number; offset: number } {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
+function paginatedResponse<T>(data: T[], page: number, limit: number) {
+  return {
+    data: data.slice(0, limit),
+    pagination: { page, limit, count: data.length, hasMore: data.length > limit },
+  };
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -18,6 +35,15 @@ export async function registerRoutes(
   
   // Set up authentication BEFORE other routes
   await setupAuth(app);
+
+  // Security headers
+  app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled for SPA
+
+  // Rate limiting
+  app.use("/api/auth/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { error: "Too many login attempts, try again later" } }));
+  app.use("/api/auth/forgot-password", rateLimit({ windowMs: 15 * 60 * 1000, max: 5, message: { error: "Too many reset requests, try again later" } }));
+  app.use("/api/", rateLimit({ windowMs: 60 * 1000, max: 120, message: { error: "Rate limit exceeded" } }));
+
   registerAuthRoutes(app);
   
   // Ensure admin user exists with correct credentials
@@ -28,10 +54,11 @@ export async function registerRoutes(
   }
   
   // ============ SHOPS ============
-  app.get("/api/shops", isAuthenticated, async (_req, res) => {
+  app.get("/api/shops", isAuthenticated, async (req, res) => {
     try {
-      const shops = await storage.getAllShops();
-      res.json(shops);
+      const { page, limit } = parsePagination(req);
+      const allShops = await storage.getAllShops();
+      res.json(paginatedResponse(allShops, page, limit));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch shops" });
     }
@@ -64,7 +91,9 @@ export async function registerRoutes(
 
   app.patch("/api/shops/:id", isAuthenticated, async (req, res) => {
     try {
-      const shop = await storage.updateShop(req.params.id, req.body);
+      const parsed = insertShopSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const shop = await storage.updateShop(req.params.id, parsed.data);
       if (!shop) {
         return res.status(404).json({ error: "Shop not found" });
       }
@@ -74,7 +103,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/shops/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/shops/:id", isAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteShop(req.params.id);
       if (!deleted) {
@@ -87,10 +116,11 @@ export async function registerRoutes(
   });
 
   // ============ DRIVERS ============
-  app.get("/api/drivers", isAuthenticated, async (_req, res) => {
+  app.get("/api/drivers", isAuthenticated, async (req, res) => {
     try {
-      const drivers = await storage.getAllDrivers();
-      res.json(drivers);
+      const { page, limit } = parsePagination(req);
+      const allDrivers = await storage.getAllDrivers();
+      res.json(paginatedResponse(allDrivers, page, limit));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch drivers" });
     }
@@ -123,7 +153,9 @@ export async function registerRoutes(
 
   app.patch("/api/drivers/:id", isAuthenticated, async (req, res) => {
     try {
-      const driver = await storage.updateDriver(req.params.id, req.body);
+      const parsed = insertDriverSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const driver = await storage.updateDriver(req.params.id, parsed.data);
       if (!driver) {
         return res.status(404).json({ error: "Driver not found" });
       }
@@ -133,7 +165,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/drivers/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/drivers/:id", isAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteDriver(req.params.id);
       if (!deleted) {
@@ -146,10 +178,11 @@ export async function registerRoutes(
   });
 
   // ============ ROUTES ============
-  app.get("/api/routes", isAuthenticated, async (_req, res) => {
+  app.get("/api/routes", isAuthenticated, async (req, res) => {
     try {
-      const routes = await storage.getAllRoutes();
-      res.json(routes);
+      const { page, limit } = parsePagination(req);
+      const allRoutes = await storage.getAllRoutes();
+      res.json(paginatedResponse(allRoutes, page, limit));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch routes" });
     }
@@ -182,7 +215,9 @@ export async function registerRoutes(
 
   app.patch("/api/routes/:id", isAuthenticated, async (req, res) => {
     try {
-      const route = await storage.updateRoute(req.params.id, req.body);
+      const parsed = insertRouteSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const route = await storage.updateRoute(req.params.id, parsed.data);
       if (!route) {
         return res.status(404).json({ error: "Route not found" });
       }
@@ -192,7 +227,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/routes/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/routes/:id", isAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteRoute(req.params.id);
       if (!deleted) {
@@ -205,10 +240,11 @@ export async function registerRoutes(
   });
 
   // ============ TARGETS ============
-  app.get("/api/targets", isAuthenticated, async (_req, res) => {
+  app.get("/api/targets", isAuthenticated, async (req, res) => {
     try {
-      const targets = await storage.getAllTargets();
-      res.json(targets);
+      const { page, limit } = parsePagination(req);
+      const allTargets = await storage.getAllTargets();
+      res.json(paginatedResponse(allTargets, page, limit));
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch targets" });
     }
@@ -241,7 +277,9 @@ export async function registerRoutes(
 
   app.patch("/api/targets/:id", isAuthenticated, async (req, res) => {
     try {
-      const target = await storage.updateTarget(req.params.id, req.body);
+      const parsed = insertTargetSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const target = await storage.updateTarget(req.params.id, parsed.data);
       if (!target) {
         return res.status(404).json({ error: "Target not found" });
       }
@@ -251,7 +289,7 @@ export async function registerRoutes(
     }
   });
 
-  app.delete("/api/targets/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/targets/:id", isAdmin, async (req, res) => {
     try {
       const deleted = await storage.deleteTarget(req.params.id);
       if (!deleted) {
@@ -267,8 +305,11 @@ export async function registerRoutes(
   registerAnalyticsRoutes(app);
 
   // ============ PRODUCTS ============
-  app.get("/api/products", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllProducts()); }
+  app.get("/api/products", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllProducts(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch products" }); }
   });
   app.get("/api/products/:id", isAuthenticated, async (req, res) => {
@@ -287,12 +328,14 @@ export async function registerRoutes(
   });
   app.patch("/api/products/:id", isAuthenticated, async (req, res) => {
     try {
-      const p = await storage.updateProduct(req.params.id, req.body);
+      const parsed = insertProductSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const p = await storage.updateProduct(req.params.id, parsed.data);
       if (!p) return res.status(404).json({ error: "Product not found" });
       res.json(p);
     } catch { res.status(500).json({ error: "Failed to update product" }); }
   });
-  app.delete("/api/products/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/products/:id", isAdmin, async (req, res) => {
     try {
       if (!await storage.deleteProduct(req.params.id)) return res.status(404).json({ error: "Product not found" });
       res.status(204).send();
@@ -300,8 +343,11 @@ export async function registerRoutes(
   });
 
   // ============ INVENTORY ============
-  app.get("/api/inventory", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllInventory()); }
+  app.get("/api/inventory", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllInventory(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch inventory" }); }
   });
   app.post("/api/inventory", isAuthenticated, async (req, res) => {
@@ -313,8 +359,11 @@ export async function registerRoutes(
   });
 
   // ============ STOCK MOVEMENTS ============
-  app.get("/api/stock-movements", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllStockMovements()); }
+  app.get("/api/stock-movements", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllStockMovements(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch stock movements" }); }
   });
   app.post("/api/stock-movements", isAuthenticated, async (req, res) => {
@@ -326,8 +375,11 @@ export async function registerRoutes(
   });
 
   // ============ SUPPLIERS ============
-  app.get("/api/suppliers", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllSuppliers()); }
+  app.get("/api/suppliers", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllSuppliers(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch suppliers" }); }
   });
   app.post("/api/suppliers", isAuthenticated, async (req, res) => {
@@ -339,12 +391,14 @@ export async function registerRoutes(
   });
   app.patch("/api/suppliers/:id", isAuthenticated, async (req, res) => {
     try {
-      const s = await storage.updateSupplier(req.params.id, req.body);
+      const parsed = insertSupplierSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const s = await storage.updateSupplier(req.params.id, parsed.data);
       if (!s) return res.status(404).json({ error: "Supplier not found" });
       res.json(s);
     } catch { res.status(500).json({ error: "Failed to update supplier" }); }
   });
-  app.delete("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/suppliers/:id", isAdmin, async (req, res) => {
     try {
       if (!await storage.deleteSupplier(req.params.id)) return res.status(404).json({ error: "Supplier not found" });
       res.status(204).send();
@@ -352,8 +406,11 @@ export async function registerRoutes(
   });
 
   // ============ PROCUREMENTS ============
-  app.get("/api/procurements", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllProcurements()); }
+  app.get("/api/procurements", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllProcurements(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch procurements" }); }
   });
   app.post("/api/procurements", isAuthenticated, async (req, res) => {
@@ -365,15 +422,20 @@ export async function registerRoutes(
   });
   app.patch("/api/procurements/:id", isAuthenticated, async (req, res) => {
     try {
-      const p = await storage.updateProcurement(req.params.id, req.body);
+      const parsed = insertProcurementSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const p = await storage.updateProcurement(req.params.id, parsed.data);
       if (!p) return res.status(404).json({ error: "Procurement not found" });
       res.json(p);
     } catch { res.status(500).json({ error: "Failed to update procurement" }); }
   });
 
   // ============ SALESPERSONS ============
-  app.get("/api/salespersons", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllSalespersons()); }
+  app.get("/api/salespersons", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllSalespersons(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch salespersons" }); }
   });
   app.post("/api/salespersons", isAuthenticated, async (req, res) => {
@@ -385,12 +447,14 @@ export async function registerRoutes(
   });
   app.patch("/api/salespersons/:id", isAuthenticated, async (req, res) => {
     try {
-      const sp = await storage.updateSalesperson(req.params.id, req.body);
+      const parsed = insertSalespersonSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const sp = await storage.updateSalesperson(req.params.id, parsed.data);
       if (!sp) return res.status(404).json({ error: "Salesperson not found" });
       res.json(sp);
     } catch { res.status(500).json({ error: "Failed to update salesperson" }); }
   });
-  app.delete("/api/salespersons/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/salespersons/:id", isAdmin, async (req, res) => {
     try {
       if (!await storage.deleteSalesperson(req.params.id)) return res.status(404).json({ error: "Salesperson not found" });
       res.status(204).send();
@@ -398,8 +462,11 @@ export async function registerRoutes(
   });
 
   // ============ ORDERS ============
-  app.get("/api/orders", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllOrders()); }
+  app.get("/api/orders", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllOrders(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch orders" }); }
   });
   app.get("/api/orders/:id", isAuthenticated, async (req, res) => {
@@ -418,12 +485,14 @@ export async function registerRoutes(
   });
   app.patch("/api/orders/:id", isAuthenticated, async (req, res) => {
     try {
-      const o = await storage.updateOrder(req.params.id, req.body);
+      const parsed = insertOrderSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const o = await storage.updateOrder(req.params.id, parsed.data);
       if (!o) return res.status(404).json({ error: "Order not found" });
       res.json(o);
     } catch { res.status(500).json({ error: "Failed to update order" }); }
   });
-  app.delete("/api/orders/:id", isAuthenticated, async (req, res) => {
+  app.delete("/api/orders/:id", isAdmin, async (req, res) => {
     try {
       if (!await storage.deleteOrder(req.params.id)) return res.status(404).json({ error: "Order not found" });
       res.status(204).send();
@@ -444,8 +513,11 @@ export async function registerRoutes(
   });
 
   // ============ DISPATCHES ============
-  app.get("/api/dispatches", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllDispatches()); }
+  app.get("/api/dispatches", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllDispatches(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch dispatches" }); }
   });
   app.get("/api/dispatches/:id", isAuthenticated, async (req, res) => {
@@ -464,7 +536,9 @@ export async function registerRoutes(
   });
   app.patch("/api/dispatches/:id", isAuthenticated, async (req, res) => {
     try {
-      const d = await storage.updateDispatch(req.params.id, req.body);
+      const parsed = insertDispatchSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const d = await storage.updateDispatch(req.params.id, parsed.data);
       if (!d) return res.status(404).json({ error: "Dispatch not found" });
       res.json(d);
     } catch { res.status(500).json({ error: "Failed to update dispatch" }); }
@@ -486,15 +560,20 @@ export async function registerRoutes(
   });
   app.patch("/api/parcels/:id", isAuthenticated, async (req, res) => {
     try {
-      const p = await storage.updateParcel(req.params.id, req.body);
+      const parsed = insertParcelSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const p = await storage.updateParcel(req.params.id, parsed.data);
       if (!p) return res.status(404).json({ error: "Parcel not found" });
       res.json(p);
     } catch { res.status(500).json({ error: "Failed to update parcel" }); }
   });
 
   // ============ PAYMENTS ============
-  app.get("/api/payments", isAuthenticated, async (_req, res) => {
-    try { res.json(await storage.getAllPayments()); }
+  app.get("/api/payments", isAuthenticated, async (req, res) => {
+    try {
+      const { page, limit } = parsePagination(req);
+      res.json(paginatedResponse(await storage.getAllPayments(), page, limit));
+    }
     catch { res.status(500).json({ error: "Failed to fetch payments" }); }
   });
   app.post("/api/payments", isAuthenticated, async (req, res) => {
@@ -506,14 +585,16 @@ export async function registerRoutes(
   });
   app.patch("/api/payments/:id", isAuthenticated, async (req, res) => {
     try {
-      const p = await storage.updatePayment(req.params.id, req.body);
+      const parsed = insertPaymentSchema.partial().safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      const p = await storage.updatePayment(req.params.id, parsed.data);
       if (!p) return res.status(404).json({ error: "Payment not found" });
       res.json(p);
     } catch { res.status(500).json({ error: "Failed to update payment" }); }
   });
 
   // ============ BACKUP ============
-  app.post("/api/backup", isAuthenticated, async (_req, res) => {
+  app.post("/api/backup", isAdmin, async (_req, res) => {
     try {
       const backup = await createBackup("manual");
       res.setHeader("Content-Type", "application/json");
@@ -549,7 +630,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/backup/history", isAuthenticated, async (_req, res) => {
+  app.get("/api/backup/history", isAdmin, async (_req, res) => {
     try {
       const history = await getBackupHistory();
       res.json(history);

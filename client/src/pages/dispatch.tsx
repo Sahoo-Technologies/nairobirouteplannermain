@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchList } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Truck, Package, Clock, CheckCircle2, AlertCircle,
   Play, Flag, Search, Plus
@@ -38,42 +40,25 @@ export default function DispatchPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDispatch, setSelectedDispatch] = useState<any>(null);
 
-  const { data: dispatches = [], isLoading } = useQuery({
+  const { data: dispatches = [], isLoading, isError } = useQuery({
     queryKey: ["/api/dispatches"],
-    queryFn: async () => {
-      const res = await fetch("/api/dispatches", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch dispatches");
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/dispatches"),
   });
 
   const { data: parcels = [] } = useQuery({
     queryKey: ["/api/parcels", selectedDispatch?.id],
-    queryFn: async () => {
-      if (!selectedDispatch) return [];
-      const res = await fetch(`/api/parcels?dispatchId=${selectedDispatch.id}`, { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => selectedDispatch ? fetchList(`/api/parcels?dispatchId=${selectedDispatch.id}`) : Promise.resolve([]),
     enabled: !!selectedDispatch,
   });
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["/api/drivers"],
-    queryFn: async () => {
-      const res = await fetch("/api/drivers", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/drivers"),
   });
 
   const { data: orders = [] } = useQuery({
     queryKey: ["/api/orders"],
-    queryFn: async () => {
-      const res = await fetch("/api/orders", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/orders"),
   });
 
   const createDispatch = useMutation({
@@ -143,6 +128,18 @@ export default function DispatchPage() {
   };
 
   const packedOrders = orders.filter((o: any) => o.status === "packed" || o.status === "confirmed");
+
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>Failed to load dispatches. Please try again later.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">

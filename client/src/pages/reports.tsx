@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { fetchList } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Package, ShoppingCart, DollarSign, TrendingUp,
   ArrowUpRight, ArrowDownRight, BarChart3, Users,
@@ -15,104 +18,87 @@ import {
 export default function ReportsPage() {
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0]);
 
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["/api/orders"],
-    queryFn: async () => {
-      const res = await fetch("/api/orders", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/orders"),
   });
 
   const { data: products = [] } = useQuery({
     queryKey: ["/api/products"],
-    queryFn: async () => {
-      const res = await fetch("/api/products", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/products"),
   });
 
   const { data: inventory = [] } = useQuery({
     queryKey: ["/api/inventory"],
-    queryFn: async () => {
-      const res = await fetch("/api/inventory", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/inventory"),
   });
 
   const { data: stockMovements = [] } = useQuery({
     queryKey: ["/api/stock-movements"],
-    queryFn: async () => {
-      const res = await fetch("/api/stock-movements", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/stock-movements"),
   });
 
   const { data: procurements = [] } = useQuery({
     queryKey: ["/api/procurements"],
-    queryFn: async () => {
-      const res = await fetch("/api/procurements", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/procurements"),
   });
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ["/api/suppliers"],
-    queryFn: async () => {
-      const res = await fetch("/api/suppliers", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/suppliers"),
   });
 
   const { data: payments = [] } = useQuery({
     queryKey: ["/api/payments"],
-    queryFn: async () => {
-      const res = await fetch("/api/payments", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/payments"),
   });
 
   const { data: salespersons = [] } = useQuery({
     queryKey: ["/api/salespersons"],
-    queryFn: async () => {
-      const res = await fetch("/api/salespersons", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/salespersons"),
   });
 
   const { data: shops = [] } = useQuery({
     queryKey: ["/api/shops"],
-    queryFn: async () => {
-      const res = await fetch("/api/shops", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/shops"),
   });
 
   const { data: routes = [] } = useQuery({
     queryKey: ["/api/routes"],
-    queryFn: async () => {
-      const res = await fetch("/api/routes", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/routes"),
   });
 
   const { data: targets = [] } = useQuery({
     queryKey: ["/api/targets"],
-    queryFn: async () => {
-      const res = await fetch("/api/targets", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/targets"),
   });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-4 w-72" />
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 rounded-xl" />
+          ))}
+        </div>
+        <Skeleton className="h-96 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>Failed to load report data. Please try again later.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">

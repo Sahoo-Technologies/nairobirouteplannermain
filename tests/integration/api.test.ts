@@ -112,6 +112,100 @@ function createTestApp() {
     res.status(201).json(target);
   });
 
+  // ---- Products ----
+  const products: Map<string, any> = new Map();
+  app.get("/api/products", (_req, res) => res.json({ data: Array.from(products.values()), pagination: { page: 1, limit: 50, count: products.size, hasMore: false } }));
+  app.post("/api/products", (req, res) => {
+    const { name, sku, category, unitPrice, costPrice } = req.body;
+    if (!name || !sku || !category || unitPrice == null || costPrice == null) return res.status(400).json({ error: "Invalid product data" });
+    const id = genId();
+    const product = { id, status: "active", ...req.body, createdAt: new Date().toISOString() };
+    products.set(id, product);
+    res.status(201).json(product);
+  });
+  app.delete("/api/products/:id", (req, res) => {
+    if (!products.has(req.params.id)) return res.status(404).json({ error: "Product not found" });
+    products.delete(req.params.id);
+    res.status(204).send();
+  });
+
+  // ---- Suppliers ----
+  const suppliers: Map<string, any> = new Map();
+  app.get("/api/suppliers", (_req, res) => res.json({ data: Array.from(suppliers.values()), pagination: { page: 1, limit: 50, count: suppliers.size, hasMore: false } }));
+  app.post("/api/suppliers", (req, res) => {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Invalid supplier data" });
+    const id = genId();
+    const supplier = { id, status: "active", ...req.body, createdAt: new Date().toISOString() };
+    suppliers.set(id, supplier);
+    res.status(201).json(supplier);
+  });
+  app.delete("/api/suppliers/:id", (req, res) => {
+    if (!suppliers.has(req.params.id)) return res.status(404).json({ error: "Supplier not found" });
+    suppliers.delete(req.params.id);
+    res.status(204).send();
+  });
+
+  // ---- Orders ----
+  const orders: Map<string, any> = new Map();
+  app.get("/api/orders", (_req, res) => res.json({ data: Array.from(orders.values()), pagination: { page: 1, limit: 50, count: orders.size, hasMore: false } }));
+  app.post("/api/orders", (req, res) => {
+    const { orderNumber, shopId, totalAmount } = req.body;
+    if (!orderNumber || !shopId || totalAmount == null) return res.status(400).json({ error: "Invalid order data" });
+    const id = genId();
+    const order = { id, status: "pending", ...req.body, createdAt: new Date().toISOString() };
+    orders.set(id, order);
+    res.status(201).json(order);
+  });
+  app.patch("/api/orders/:id", (req, res) => {
+    const order = orders.get(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    const updated = { ...order, ...req.body };
+    orders.set(req.params.id, updated);
+    res.json(updated);
+  });
+  app.delete("/api/orders/:id", (req, res) => {
+    if (!orders.has(req.params.id)) return res.status(404).json({ error: "Order not found" });
+    orders.delete(req.params.id);
+    res.status(204).send();
+  });
+
+  // ---- Dispatches ----
+  const dispatches: Map<string, any> = new Map();
+  app.get("/api/dispatches", (_req, res) => res.json({ data: Array.from(dispatches.values()), pagination: { page: 1, limit: 50, count: dispatches.size, hasMore: false } }));
+  app.post("/api/dispatches", (req, res) => {
+    const { dispatchNumber, driverId, date } = req.body;
+    if (!dispatchNumber || !driverId || !date) return res.status(400).json({ error: "Invalid dispatch data" });
+    const id = genId();
+    const dispatch = { id, status: "packing", ...req.body, createdAt: new Date().toISOString() };
+    dispatches.set(id, dispatch);
+    res.status(201).json(dispatch);
+  });
+
+  // ---- Payments ----
+  const payments: Map<string, any> = new Map();
+  app.get("/api/payments", (_req, res) => res.json({ data: Array.from(payments.values()), pagination: { page: 1, limit: 50, count: payments.size, hasMore: false } }));
+  app.post("/api/payments", (req, res) => {
+    const { orderId, amount } = req.body;
+    if (!orderId || amount == null) return res.status(400).json({ error: "Invalid payment data" });
+    const id = genId();
+    const payment = { id, status: "pending", ...req.body, createdAt: new Date().toISOString() };
+    payments.set(id, payment);
+    res.status(201).json(payment);
+  });
+
+  // ---- Salespersons ----
+  const salespersons: Map<string, any> = new Map();
+  app.get("/api/salespersons", (_req, res) => res.json({ data: Array.from(salespersons.values()), pagination: { page: 1, limit: 50, count: salespersons.size, hasMore: false } }));
+  app.post("/api/salespersons", (req, res) => {
+    const { name, phone } = req.body;
+    if (!name || !phone) return res.status(400).json({ error: "Invalid salesperson data" });
+    const id = genId();
+    const sp = { id, status: "active", ...req.body, createdAt: new Date().toISOString() };
+    salespersons.set(id, sp);
+    res.status(201).json(sp);
+  });
+
   // ---- Health check ----
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
@@ -308,6 +402,247 @@ describe("API: Targets endpoints", () => {
   });
 });
 
+// ==========================
+// Products endpoints
+// ==========================
+describe("API: Products endpoints", () => {
+  const app = createTestApp();
+
+  it("GET /api/products should return paginated envelope", async () => {
+    const res = await request(app).get("/api/products");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("pagination");
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it("POST /api/products should create a product", async () => {
+    const res = await request(app).post("/api/products").send({
+      name: "Unga Maize Flour",
+      sku: "UMF-001",
+      category: "flour",
+      unitPrice: 150,
+      costPrice: 120,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("Unga Maize Flour");
+    expect(res.body.status).toBe("active");
+  });
+
+  it("POST /api/products should reject missing fields", async () => {
+    const res = await request(app).post("/api/products").send({ name: "Incomplete" });
+    expect(res.status).toBe(400);
+  });
+
+  it("DELETE /api/products/:id should remove a product", async () => {
+    const created = await request(app).post("/api/products").send({
+      name: "To Delete",
+      sku: "DEL-001",
+      category: "test",
+      unitPrice: 10,
+      costPrice: 5,
+    });
+    const res = await request(app).delete(`/api/products/${created.body.id}`);
+    expect(res.status).toBe(204);
+  });
+
+  it("DELETE /api/products/:id should 404 for missing product", async () => {
+    const res = await request(app).delete("/api/products/nonexistent");
+    expect(res.status).toBe(404);
+  });
+});
+
+// ==========================
+// Suppliers endpoints
+// ==========================
+describe("API: Suppliers endpoints", () => {
+  const app = createTestApp();
+
+  it("GET /api/suppliers should return paginated envelope", async () => {
+    const res = await request(app).get("/api/suppliers");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("pagination");
+  });
+
+  it("POST /api/suppliers should create a supplier", async () => {
+    const res = await request(app).post("/api/suppliers").send({
+      name: "Bidco Africa",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("Bidco Africa");
+    expect(res.body.status).toBe("active");
+  });
+
+  it("POST /api/suppliers should reject missing name", async () => {
+    const res = await request(app).post("/api/suppliers").send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("DELETE /api/suppliers/:id should remove a supplier", async () => {
+    const created = await request(app).post("/api/suppliers").send({ name: "Remove Me" });
+    const res = await request(app).delete(`/api/suppliers/${created.body.id}`);
+    expect(res.status).toBe(204);
+  });
+
+  it("DELETE /api/suppliers/:id should 404 for missing supplier", async () => {
+    const res = await request(app).delete("/api/suppliers/nonexistent");
+    expect(res.status).toBe(404);
+  });
+});
+
+// ==========================
+// Orders endpoints
+// ==========================
+describe("API: Orders endpoints", () => {
+  const app = createTestApp();
+
+  it("GET /api/orders should return paginated envelope", async () => {
+    const res = await request(app).get("/api/orders");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("pagination");
+  });
+
+  it("POST /api/orders should create an order", async () => {
+    const res = await request(app).post("/api/orders").send({
+      orderNumber: "ORD-001",
+      shopId: "shop-1",
+      totalAmount: 5000,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.orderNumber).toBe("ORD-001");
+    expect(res.body.status).toBe("pending");
+  });
+
+  it("POST /api/orders should reject missing fields", async () => {
+    const res = await request(app).post("/api/orders").send({ orderNumber: "ORD-BAD" });
+    expect(res.status).toBe(400);
+  });
+
+  it("PATCH /api/orders/:id should update an order", async () => {
+    const created = await request(app).post("/api/orders").send({
+      orderNumber: "ORD-UPD",
+      shopId: "shop-1",
+      totalAmount: 3000,
+    });
+    const res = await request(app).patch(`/api/orders/${created.body.id}`).send({ status: "confirmed" });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe("confirmed");
+  });
+
+  it("PATCH /api/orders/:id should 404 for missing order", async () => {
+    const res = await request(app).patch("/api/orders/nonexistent").send({ status: "confirmed" });
+    expect(res.status).toBe(404);
+  });
+
+  it("DELETE /api/orders/:id should remove an order", async () => {
+    const created = await request(app).post("/api/orders").send({
+      orderNumber: "ORD-DEL",
+      shopId: "shop-1",
+      totalAmount: 1000,
+    });
+    const res = await request(app).delete(`/api/orders/${created.body.id}`);
+    expect(res.status).toBe(204);
+  });
+
+  it("DELETE /api/orders/:id should 404 for missing order", async () => {
+    const res = await request(app).delete("/api/orders/nonexistent");
+    expect(res.status).toBe(404);
+  });
+});
+
+// ==========================
+// Dispatches endpoints
+// ==========================
+describe("API: Dispatches endpoints", () => {
+  const app = createTestApp();
+
+  it("GET /api/dispatches should return paginated envelope", async () => {
+    const res = await request(app).get("/api/dispatches");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("pagination");
+  });
+
+  it("POST /api/dispatches should create a dispatch", async () => {
+    const res = await request(app).post("/api/dispatches").send({
+      dispatchNumber: "DSP-001",
+      driverId: "drv-1",
+      date: "2026-03-01",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.dispatchNumber).toBe("DSP-001");
+    expect(res.body.status).toBe("packing");
+  });
+
+  it("POST /api/dispatches should reject missing fields", async () => {
+    const res = await request(app).post("/api/dispatches").send({ dispatchNumber: "DSP-BAD" });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ==========================
+// Payments endpoints
+// ==========================
+describe("API: Payments endpoints", () => {
+  const app = createTestApp();
+
+  it("GET /api/payments should return paginated envelope", async () => {
+    const res = await request(app).get("/api/payments");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("pagination");
+  });
+
+  it("POST /api/payments should create a payment", async () => {
+    const res = await request(app).post("/api/payments").send({
+      orderId: "ord-1",
+      amount: 2500,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("pending");
+    expect(res.body.amount).toBe(2500);
+  });
+
+  it("POST /api/payments should reject missing fields", async () => {
+    const res = await request(app).post("/api/payments").send({});
+    expect(res.status).toBe(400);
+  });
+});
+
+// ==========================
+// Salespersons endpoints
+// ==========================
+describe("API: Salespersons endpoints", () => {
+  const app = createTestApp();
+
+  it("GET /api/salespersons should return paginated envelope", async () => {
+    const res = await request(app).get("/api/salespersons");
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("data");
+    expect(res.body).toHaveProperty("pagination");
+  });
+
+  it("POST /api/salespersons should create a salesperson", async () => {
+    const res = await request(app).post("/api/salespersons").send({
+      name: "Jane Wanjiku",
+      phone: "+254712345678",
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.name).toBe("Jane Wanjiku");
+    expect(res.body.status).toBe("active");
+  });
+
+  it("POST /api/salespersons should reject missing fields", async () => {
+    const res = await request(app).post("/api/salespersons").send({ name: "No Phone" });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ==========================
+// Content-Type handling
+// ==========================
 describe("API: Content-Type handling", () => {
   const app = createTestApp();
 

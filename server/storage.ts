@@ -700,4 +700,14 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+function createStorage(): IStorage {
+  if (process.env.DATABASE_URL) {
+    // Use real PostgreSQL database in production / when DATABASE_URL is set
+    const { DatabaseStorage } = require("./database-storage") as typeof import("./database-storage");
+    return new DatabaseStorage();
+  }
+  // Fallback to in-memory storage for local dev without a database
+  return new MemStorage();
+}
+
+export const storage: IStorage = createStorage();

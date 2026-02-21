@@ -44,11 +44,11 @@ describe("E2E: Project structure validation", () => {
   });
 
   it("should have shared schema", () => {
-    expect(fs.existsSync(path.join(ROOT, "shared", "schema.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, "shared", "schema.ts"))).toBe(true);
   });
 
   it("should have server entry point", () => {
-    expect(fs.existsSync(path.join(ROOT, "server", "index.tsx"))).toBe(true);
+    expect(fs.existsSync(path.join(ROOT, "server", "index.ts"))).toBe(true);
   });
 });
 
@@ -198,24 +198,24 @@ describe("E2E: API serverless function validation", () => {
 
 describe("E2E: Vite config validation", () => {
   it("vite config should set client as root", () => {
-    const content = fs.readFileSync(path.join(ROOT, "vite.config.tsx"), "utf-8");
+    const content = fs.readFileSync(path.join(ROOT, "vite.config.ts"), "utf-8");
     expect(content).toContain("client");
     expect(content).toContain("root:");
   });
 
   it("vite config should set dist/public as output", () => {
-    const content = fs.readFileSync(path.join(ROOT, "vite.config.tsx"), "utf-8");
+    const content = fs.readFileSync(path.join(ROOT, "vite.config.ts"), "utf-8");
     expect(content).toContain("dist/public");
   });
 
   it("vite config should not hard-import Replit plugins", () => {
-    const content = fs.readFileSync(path.join(ROOT, "vite.config.tsx"), "utf-8");
+    const content = fs.readFileSync(path.join(ROOT, "vite.config.ts"), "utf-8");
     // Should use dynamic import with try/catch, not top-level import
     expect(content).not.toMatch(/^import.*@replit/m);
   });
 
   it("vite config should have path aliases", () => {
-    const content = fs.readFileSync(path.join(ROOT, "vite.config.tsx"), "utf-8");
+    const content = fs.readFileSync(path.join(ROOT, "vite.config.ts"), "utf-8");
     expect(content).toContain("@");
     expect(content).toContain("@shared");
   });

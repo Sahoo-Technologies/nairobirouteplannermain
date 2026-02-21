@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchList } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Plus, ClipboardList, Clock, Package, CheckCircle2,
   Truck, CreditCard, Search, Filter
@@ -35,31 +37,19 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const { data: orders = [], isLoading } = useQuery({
+  const { data: orders = [], isLoading, isError } = useQuery({
     queryKey: ["/api/orders"],
-    queryFn: async () => {
-      const res = await fetch("/api/orders", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch orders");
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/orders"),
   });
 
   const { data: shops = [] } = useQuery({
     queryKey: ["/api/shops"],
-    queryFn: async () => {
-      const res = await fetch("/api/shops", { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch shops");
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/shops"),
   });
 
   const { data: salespersons = [] } = useQuery({
     queryKey: ["/api/salespersons"],
-    queryFn: async () => {
-      const res = await fetch("/api/salespersons", { credentials: "include" });
-      if (!res.ok) return [];
-      return res.json();
-    },
+    queryFn: () => fetchList("/api/salespersons"),
   });
 
   const createOrder = useMutation({
@@ -126,6 +116,18 @@ export default function OrdersPage() {
     const sp = salespersons.find((s: any) => s.id === spId);
     return sp?.name || spId || "—";
   };
+
+  if (isError) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <Alert variant="destructive">
+          <ClipboardList className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>Failed to load orders. Please try again later.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">
