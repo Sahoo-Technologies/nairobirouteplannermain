@@ -17,8 +17,12 @@ describe("E2E: Project structure validation", () => {
     expect(fs.existsSync(path.join(ROOT, "vercel.json"))).toBe(true);
   });
 
-  it("should have api/index.ts serverless function", () => {
-    expect(fs.existsSync(path.join(ROOT, "api", "index.ts"))).toBe(true);
+  it("should have server/vercel-entry.ts (API entry point)", () => {
+    expect(fs.existsSync(path.join(ROOT, "server", "vercel-entry.ts"))).toBe(true);
+  });
+
+  it("should have api/index.mjs (bundled serverless function)", () => {
+    expect(fs.existsSync(path.join(ROOT, "api", "index.mjs"))).toBe(true);
   });
 
   it("should have client entry point", () => {
@@ -87,7 +91,7 @@ describe("E2E: Vercel configuration validation", () => {
     const content = fs.readFileSync(path.join(ROOT, "vercel.json"), "utf-8");
     vercelConfig = JSON.parse(content);
     expect(vercelConfig.functions).toBeDefined();
-    expect(vercelConfig.functions["api/index.ts"]).toBeDefined();
+    expect(vercelConfig.functions["api/index.mjs"]).toBeDefined();
   });
 
   it("should have cron configured", () => {
@@ -178,21 +182,26 @@ describe("E2E: TypeScript configuration validation", () => {
 });
 
 describe("E2E: API serverless function validation", () => {
-  it("api/index.ts should export a default handler", () => {
-    const content = fs.readFileSync(path.join(ROOT, "api", "index.ts"), "utf-8");
+  it("server/vercel-entry.ts should export a default handler", () => {
+    const content = fs.readFileSync(path.join(ROOT, "server", "vercel-entry.ts"), "utf-8");
     expect(content).toContain("export default");
     expect(content).toContain("async function handler");
   });
 
-  it("api/index.ts should import from server", () => {
-    const content = fs.readFileSync(path.join(ROOT, "api", "index.ts"), "utf-8");
-    expect(content).toContain("../server/routes");
+  it("server/vercel-entry.ts should import from server routes", () => {
+    const content = fs.readFileSync(path.join(ROOT, "server", "vercel-entry.ts"), "utf-8");
+    expect(content).toContain("./routes");
   });
 
-  it("api/index.ts should initialize Express app", () => {
-    const content = fs.readFileSync(path.join(ROOT, "api", "index.ts"), "utf-8");
+  it("server/vercel-entry.ts should initialize Express app", () => {
+    const content = fs.readFileSync(path.join(ROOT, "server", "vercel-entry.ts"), "utf-8");
     expect(content).toContain("express()");
     expect(content).toContain("express.json");
+  });
+
+  it("api/index.mjs bundle should contain handler export", () => {
+    const content = fs.readFileSync(path.join(ROOT, "api", "index.mjs"), "utf-8");
+    expect(content).toContain("handler");
   });
 });
 

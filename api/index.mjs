@@ -449,7 +449,8 @@ var init_db = __esm({
     "use strict";
     init_schema();
     pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.DATABASE_URL?.includes("supabase") ? { rejectUnauthorized: false } : void 0
     });
     db = drizzle(pool, { schema: schema_exports });
   }
