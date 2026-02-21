@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain, Database } from "lucide-react";
+import { LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain, Database, GitBranch, ClipboardList, PackageCheck, FileBarChart } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -37,6 +37,29 @@ const mainNavItems = [
     title: "Drivers",
     url: "/drivers",
     icon: Truck,
+  },
+];
+
+const operationsItems = [
+  {
+    title: "Process Map",
+    url: "/process-map",
+    icon: GitBranch,
+  },
+  {
+    title: "Orders",
+    url: "/orders",
+    icon: ClipboardList,
+  },
+  {
+    title: "Dispatch",
+    url: "/dispatch",
+    icon: PackageCheck,
+  },
+  {
+    title: "Reports",
+    url: "/reports",
+    icon: FileBarChart,
   },
 ];
 
@@ -95,6 +118,27 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {mainNavItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton 
+                    asChild
+                    isActive={location === item.url}
+                  >
+                    <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(" ", "-")}`}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Operations</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {operationsItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton 
                     asChild

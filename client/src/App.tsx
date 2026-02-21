@@ -17,6 +17,10 @@ import RoutesPage from "@/pages/routes";
 import TargetsPage from "@/pages/targets";
 import AnalyticsPage from "@/pages/analytics";
 import BackupPage from "@/pages/backup";
+import ProcessMapPage from "@/pages/process-map";
+import OrdersPage from "@/pages/orders";
+import DispatchPage from "@/pages/dispatch";
+import ReportsPage from "@/pages/reports";
 import LoginPage from "@/pages/login";
 import ForgotPasswordPage from "@/pages/forgot-password";
 import ResetPasswordPage from "@/pages/reset-password";
@@ -32,6 +36,10 @@ function AuthenticatedRouter() {
       <Route path="/targets" component={TargetsPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/backup" component={BackupPage} />
+      <Route path="/process-map" component={ProcessMapPage} />
+      <Route path="/orders" component={OrdersPage} />
+      <Route path="/dispatch" component={DispatchPage} />
+      <Route path="/reports" component={ReportsPage} />
       <Route component={NotFound} />
     </Switch>
   );

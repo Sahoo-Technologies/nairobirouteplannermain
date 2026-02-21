@@ -1,7 +1,12 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSchema } from "@shared/schema";
+import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSchema,
+  insertProductSchema, insertSupplierSchema, insertProcurementSchema,
+  insertSalespersonSchema, insertOrderSchema, insertOrderItemSchema,
+  insertDispatchSchema, insertParcelSchema, insertPaymentSchema,
+  insertStockMovementSchema, insertInventorySchema
+} from "@shared/schema";
 import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated } from "./auth";
 import { registerAnalyticsRoutes } from "./ai/analytics-routes";
 import { createBackup, getBackupHistory } from "./backup";
@@ -260,6 +265,252 @@ export async function registerRoutes(
 
   // Register AI Analytics routes
   registerAnalyticsRoutes(app);
+
+  // ============ PRODUCTS ============
+  app.get("/api/products", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllProducts()); }
+    catch { res.status(500).json({ error: "Failed to fetch products" }); }
+  });
+  app.get("/api/products/:id", isAuthenticated, async (req, res) => {
+    try {
+      const p = await storage.getProduct(req.params.id);
+      if (!p) return res.status(404).json({ error: "Product not found" });
+      res.json(p);
+    } catch { res.status(500).json({ error: "Failed to fetch product" }); }
+  });
+  app.post("/api/products", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertProductSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createProduct(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create product" }); }
+  });
+  app.patch("/api/products/:id", isAuthenticated, async (req, res) => {
+    try {
+      const p = await storage.updateProduct(req.params.id, req.body);
+      if (!p) return res.status(404).json({ error: "Product not found" });
+      res.json(p);
+    } catch { res.status(500).json({ error: "Failed to update product" }); }
+  });
+  app.delete("/api/products/:id", isAuthenticated, async (req, res) => {
+    try {
+      if (!await storage.deleteProduct(req.params.id)) return res.status(404).json({ error: "Product not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete product" }); }
+  });
+
+  // ============ INVENTORY ============
+  app.get("/api/inventory", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllInventory()); }
+    catch { res.status(500).json({ error: "Failed to fetch inventory" }); }
+  });
+  app.post("/api/inventory", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertInventorySchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.json(await storage.upsertInventory(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to update inventory" }); }
+  });
+
+  // ============ STOCK MOVEMENTS ============
+  app.get("/api/stock-movements", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllStockMovements()); }
+    catch { res.status(500).json({ error: "Failed to fetch stock movements" }); }
+  });
+  app.post("/api/stock-movements", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertStockMovementSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createStockMovement(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create stock movement" }); }
+  });
+
+  // ============ SUPPLIERS ============
+  app.get("/api/suppliers", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllSuppliers()); }
+    catch { res.status(500).json({ error: "Failed to fetch suppliers" }); }
+  });
+  app.post("/api/suppliers", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertSupplierSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createSupplier(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create supplier" }); }
+  });
+  app.patch("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+    try {
+      const s = await storage.updateSupplier(req.params.id, req.body);
+      if (!s) return res.status(404).json({ error: "Supplier not found" });
+      res.json(s);
+    } catch { res.status(500).json({ error: "Failed to update supplier" }); }
+  });
+  app.delete("/api/suppliers/:id", isAuthenticated, async (req, res) => {
+    try {
+      if (!await storage.deleteSupplier(req.params.id)) return res.status(404).json({ error: "Supplier not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete supplier" }); }
+  });
+
+  // ============ PROCUREMENTS ============
+  app.get("/api/procurements", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllProcurements()); }
+    catch { res.status(500).json({ error: "Failed to fetch procurements" }); }
+  });
+  app.post("/api/procurements", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertProcurementSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createProcurement(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create procurement" }); }
+  });
+  app.patch("/api/procurements/:id", isAuthenticated, async (req, res) => {
+    try {
+      const p = await storage.updateProcurement(req.params.id, req.body);
+      if (!p) return res.status(404).json({ error: "Procurement not found" });
+      res.json(p);
+    } catch { res.status(500).json({ error: "Failed to update procurement" }); }
+  });
+
+  // ============ SALESPERSONS ============
+  app.get("/api/salespersons", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllSalespersons()); }
+    catch { res.status(500).json({ error: "Failed to fetch salespersons" }); }
+  });
+  app.post("/api/salespersons", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertSalespersonSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createSalesperson(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create salesperson" }); }
+  });
+  app.patch("/api/salespersons/:id", isAuthenticated, async (req, res) => {
+    try {
+      const sp = await storage.updateSalesperson(req.params.id, req.body);
+      if (!sp) return res.status(404).json({ error: "Salesperson not found" });
+      res.json(sp);
+    } catch { res.status(500).json({ error: "Failed to update salesperson" }); }
+  });
+  app.delete("/api/salespersons/:id", isAuthenticated, async (req, res) => {
+    try {
+      if (!await storage.deleteSalesperson(req.params.id)) return res.status(404).json({ error: "Salesperson not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete salesperson" }); }
+  });
+
+  // ============ ORDERS ============
+  app.get("/api/orders", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllOrders()); }
+    catch { res.status(500).json({ error: "Failed to fetch orders" }); }
+  });
+  app.get("/api/orders/:id", isAuthenticated, async (req, res) => {
+    try {
+      const o = await storage.getOrder(req.params.id);
+      if (!o) return res.status(404).json({ error: "Order not found" });
+      res.json(o);
+    } catch { res.status(500).json({ error: "Failed to fetch order" }); }
+  });
+  app.post("/api/orders", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertOrderSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createOrder(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create order" }); }
+  });
+  app.patch("/api/orders/:id", isAuthenticated, async (req, res) => {
+    try {
+      const o = await storage.updateOrder(req.params.id, req.body);
+      if (!o) return res.status(404).json({ error: "Order not found" });
+      res.json(o);
+    } catch { res.status(500).json({ error: "Failed to update order" }); }
+  });
+  app.delete("/api/orders/:id", isAuthenticated, async (req, res) => {
+    try {
+      if (!await storage.deleteOrder(req.params.id)) return res.status(404).json({ error: "Order not found" });
+      res.status(204).send();
+    } catch { res.status(500).json({ error: "Failed to delete order" }); }
+  });
+
+  // Order Items
+  app.get("/api/orders/:id/items", isAuthenticated, async (req, res) => {
+    try { res.json(await storage.getOrderItems(req.params.id)); }
+    catch { res.status(500).json({ error: "Failed to fetch order items" }); }
+  });
+  app.post("/api/order-items", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertOrderItemSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createOrderItem(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create order item" }); }
+  });
+
+  // ============ DISPATCHES ============
+  app.get("/api/dispatches", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllDispatches()); }
+    catch { res.status(500).json({ error: "Failed to fetch dispatches" }); }
+  });
+  app.get("/api/dispatches/:id", isAuthenticated, async (req, res) => {
+    try {
+      const d = await storage.getDispatch(req.params.id);
+      if (!d) return res.status(404).json({ error: "Dispatch not found" });
+      res.json(d);
+    } catch { res.status(500).json({ error: "Failed to fetch dispatch" }); }
+  });
+  app.post("/api/dispatches", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertDispatchSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createDispatch(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create dispatch" }); }
+  });
+  app.patch("/api/dispatches/:id", isAuthenticated, async (req, res) => {
+    try {
+      const d = await storage.updateDispatch(req.params.id, req.body);
+      if (!d) return res.status(404).json({ error: "Dispatch not found" });
+      res.json(d);
+    } catch { res.status(500).json({ error: "Failed to update dispatch" }); }
+  });
+
+  // ============ PARCELS ============
+  app.get("/api/parcels", isAuthenticated, async (req, res) => {
+    try {
+      const dispatchId = req.query.dispatchId as string | undefined;
+      res.json(await storage.getAllParcels(dispatchId));
+    } catch { res.status(500).json({ error: "Failed to fetch parcels" }); }
+  });
+  app.post("/api/parcels", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertParcelSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createParcel(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create parcel" }); }
+  });
+  app.patch("/api/parcels/:id", isAuthenticated, async (req, res) => {
+    try {
+      const p = await storage.updateParcel(req.params.id, req.body);
+      if (!p) return res.status(404).json({ error: "Parcel not found" });
+      res.json(p);
+    } catch { res.status(500).json({ error: "Failed to update parcel" }); }
+  });
+
+  // ============ PAYMENTS ============
+  app.get("/api/payments", isAuthenticated, async (_req, res) => {
+    try { res.json(await storage.getAllPayments()); }
+    catch { res.status(500).json({ error: "Failed to fetch payments" }); }
+  });
+  app.post("/api/payments", isAuthenticated, async (req, res) => {
+    try {
+      const parsed = insertPaymentSchema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: "Invalid data", details: parsed.error.errors });
+      res.status(201).json(await storage.createPayment(parsed.data));
+    } catch { res.status(500).json({ error: "Failed to create payment" }); }
+  });
+  app.patch("/api/payments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const p = await storage.updatePayment(req.params.id, req.body);
+      if (!p) return res.status(404).json({ error: "Payment not found" });
+      res.json(p);
+    } catch { res.status(500).json({ error: "Failed to update payment" }); }
+  });
 
   // ============ BACKUP ============
   app.post("/api/backup", isAuthenticated, async (_req, res) => {
