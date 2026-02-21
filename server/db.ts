@@ -2,10 +2,18 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
 
-const isSupabase = process.env.DATABASE_URL?.includes("supabase");
+const rawUrl = process.env.DATABASE_URL ?? "";
+const isSupabase = rawUrl.includes("supabase");
+
+// Strip sslmode from the connection string so the pg driver doesn't
+// override our programmatic SSL config (newer pg treats sslmode=require
+// as verify-full, causing SELF_SIGNED_CERT_IN_CHAIN on Supabase pooler).
+const connectionString = rawUrl.replace(/[?&]sslmode=[^&]*/g, (m) =>
+  m.startsWith("?") ? "?" : ""
+).replace(/\?&/, "?").replace(/\?$/, "");
 
 export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString,
   ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
   // Production pool hardening
   max: 10,                       // max connections (Supabase pooler default limit)

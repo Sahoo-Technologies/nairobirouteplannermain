@@ -443,14 +443,19 @@ var init_schema = __esm({
 // server/db.ts
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
-var isSupabase, pool, db;
+var rawUrl, isSupabase, connectionString, pool, db;
 var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
-    isSupabase = process.env.DATABASE_URL?.includes("supabase");
+    rawUrl = process.env.DATABASE_URL ?? "";
+    isSupabase = rawUrl.includes("supabase");
+    connectionString = rawUrl.replace(
+      /[?&]sslmode=[^&]*/g,
+      (m) => m.startsWith("?") ? "?" : ""
+    ).replace(/\?&/, "?").replace(/\?$/, "");
     pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
+      connectionString,
       ssl: isSupabase ? { rejectUnauthorized: false } : void 0,
       // Production pool hardening
       max: 10,
