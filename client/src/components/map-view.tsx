@@ -160,8 +160,12 @@ export function MapView({
         scrollWheelZoom={true}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://carto.com/attributions">CartoDB</a> contributors'
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+          maxZoom={18}
+          tileSize={256}
+          updateWhenIdle={true}
+          reuseTiles={true}
         />
         
         <MapClickHandler onClick={onMapClick} />
