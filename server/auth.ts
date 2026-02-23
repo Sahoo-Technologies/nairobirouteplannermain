@@ -435,22 +435,37 @@ export async function ensureAdminUser(email: string, password: string) {
       const passwordHash = await hashPassword(password);
       await db
         .update(users)
+        // Middleware to check if user is manager
+        export function isManager(req: Request, res: Response, next: NextFunction) {
+          if (!req.session.userId) {
+            return res.status(401).json({ error: "Not authenticated" });
+          }
+          const userId = req.session.userId;
+          db.select({ role: users.role }).from(users).where(eq(users.id, userId)).then((rows) => {
+            if (!rows.length || (rows[0].role !== "manager" && rows[0].role !== "admin")) {
+              return res.status(403).json({ error: "Manager or admin access required" });
+            }
+            next();
+          }).catch(() => {
+            res.status(500).json({ error: "Authorization check failed" });
+          });
+        }
         .set({ 
           passwordHash, 
           role: "admin",
-          updatedAt: new Date()
-        })
-        .where(eq(users.email, email.toLowerCase()));
-    }
-  } else {
-    // Create new admin user
-    const passwordHash = await hashPassword(password);
-    await db.insert(users).values({
-      email: email.toLowerCase(),
-      passwordHash,
-      firstName: "Admin",
-      lastName: "User",
-      role: "admin",
-    });
-  }
+        export function isAdmin(req: Request, res: Response, next: NextFunction) {
+          if (!req.session.userId) {
+            return res.status(401).json({ error: "Not authenticated" });
+          }
+          // Look up user role from the database
+          const userId = req.session.userId;
+          db.select({ role: users.role }).from(users).where(eq(users.id, userId)).then((rows) => {
+            if (!rows.length || rows[0].role !== "admin") {
+              return res.status(403).json({ error: "Admin access required" });
+            }
+            next();
+          }).catch(() => {
+            res.status(500).json({ error: "Authorization check failed" });
+          });
+        }
 }

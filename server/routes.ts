@@ -661,7 +661,9 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to fetch users" }); }
   });
 
-  app.post("/api/admin/users", isAdmin, async (req, res) => {
+  import { isManager } from "./auth";
+
+  app.post("/api/admin/users", isManager, async (req, res) => {
     try {
       const { email, password, firstName, lastName, role } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
@@ -682,8 +684,16 @@ export async function registerRoutes(
         passwordHash,
         firstName: firstName || null,
         lastName: lastName || null,
-        role: role === "admin" ? "admin" : "user",
+        role: ["admin", "manager", "user"].includes(role) ? role : "user",
       }).returning();
+
+      // Send credentials email
+      try {
+        const { sendCredentialsEmail } = require("./emails");
+        await sendCredentialsEmail(email, password, firstName || "User");
+      } catch (e) {
+        console.error("Failed to send credentials email:", e);
+      }
 
       const { passwordHash: _, ...userData } = newUser;
       res.status(201).json(userData);

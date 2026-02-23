@@ -19,7 +19,7 @@ import {
 
 export default function AdminUsersPage() {
   const { toast } = useToast();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, isAdmin, isManager } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -44,10 +44,13 @@ export default function AdminUsersPage() {
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setCreateOpen(false);
       toast({ title: "User created successfully" });
+      if (data && data.email) {
+        toast({ title: `Credentials sent to ${data.email}`, description: "The new user has received their login details by email." });
+      }
     },
     onError: (err: Error) => {
       toast({ title: err.message, variant: "destructive" });
@@ -116,23 +119,25 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold">User Management</h1>
           <p className="text-muted-foreground">Create and manage user accounts</p>
         </div>
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <UserPlus className="mr-2 h-4 w-4" />
-              Create User
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New User</DialogTitle>
-            </DialogHeader>
-            <CreateUserForm
-              onSubmit={(data) => createMutation.mutate(data)}
-              isLoading={createMutation.isPending}
-            />
-          </DialogContent>
-        </Dialog>
+        {(isAdmin || isManager) && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Create User
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New User</DialogTitle>
+              </DialogHeader>
+              <CreateUserForm
+                onSubmit={(data) => createMutation.mutate(data)}
+                isLoading={createMutation.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Stats */}

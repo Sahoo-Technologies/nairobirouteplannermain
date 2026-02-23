@@ -31,12 +31,11 @@ const driverFormSchema = z.object({
 
 type DriverFormData = z.infer<typeof driverFormSchema>;
 
-export default function DriversPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const { toast } = useToast();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager } = useAuth();
 
   const { data: drivers = [], isLoading } = useQuery<Driver[]>({
     queryKey: ["/api/drivers"],
@@ -152,32 +151,33 @@ export default function DriversPage() {
           <h1 className="text-2xl font-semibold">Drivers</h1>
           <p className="text-muted-foreground">Manage your delivery fleet</p>
         </div>
-        <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
-          setIsAddDialogOpen(open);
-          if (!open) {
-            setEditingDriver(null);
-            form.reset();
-          }
-        }}>
-          <DialogTrigger asChild>
-            <Button data-testid="button-add-driver">
-              <Plus className="mr-2 h-4 w-4" />
-              Add Driver
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingDriver ? "Edit Driver" : "Add New Driver"}</DialogTitle>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Driver Name</FormLabel>
-                      <FormControl>
+        {(isAdmin || isManager) && (
+          <Dialog open={isAddDialogOpen} onOpenChange={(open) => {
+            setIsAddDialogOpen(open);
+            if (!open) {
+              setEditingDriver(null);
+              form.reset();
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button data-testid="button-add-driver">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Driver
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingDriver ? "Edit Driver" : "Add New Driver"}</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Driver Name</FormLabel>
+                        <FormControl>
                         <Input {...field} placeholder="Full name" data-testid="input-driver-name" />
                       </FormControl>
                       <FormMessage />

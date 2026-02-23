@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchList } from "@/lib/queryClient";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -13,15 +13,50 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import {
-  Plus, Search, AlertTriangle, MoreVertical,
-  Pencil, Trash2, Users, Phone, Mail, DollarSign
-} from "lucide-react";
+import { Plus, Search, AlertTriangle, MoreVertical, Pencil, Trash2, Phone, Mail } from "lucide-react";
+
+function SalespersonForm({ initialData, onSubmit, isLoading }: { initialData?: any; onSubmit: (data: Record<string, unknown>) => void; isLoading: boolean; }) {
+  const [form, setForm] = useState({
+    name: initialData?.name || "",
+    phone: initialData?.phone || "",
+    email: initialData?.email || "",
+    status: initialData?.status || "active",
+  });
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSubmit(form); }} className="flex flex-col gap-4">
+      <div>
+        <Label>Full Name</Label>
+        <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Full name" required />
+      </div>
+      <div>
+        <Label>Phone Number</Label>
+        <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="+254..." required />
+      </div>
+      <div>
+        <Label>Email</Label>
+        <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
+      </div>
+      <div>
+        <Label>Status</Label>
+        <Select value={form.status} onValueChange={v => setForm({ ...form, status: v })}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Active</SelectItem>
+            <SelectItem value="inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <Button type="submit" disabled={isLoading || !form.name || !form.phone}>
+        {isLoading ? "Saving..." : initialData ? "Update Salesperson" : "Add Salesperson"}
+      </Button>
+    </form>
+  );
+}
 
 export default function SalespersonsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
+  const { isAdmin, isManager } = useAuth();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSalesperson, setEditingSalesperson] = useState<any>(null);
@@ -30,7 +65,6 @@ export default function SalespersonsPage() {
     queryKey: ["/api/salespersons"],
     queryFn: () => fetchList("/api/salespersons"),
   });
-
   const { data: orders = [] } = useQuery({
     queryKey: ["/api/orders"],
     queryFn: () => fetchList("/api/orders"),
@@ -57,7 +91,6 @@ export default function SalespersonsPage() {
       toast({ title: "Failed to add salesperson", variant: "destructive" });
     },
   });
-
   const updateSalesperson = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: Record<string, unknown> }) => {
       const res = await fetch(`/api/salespersons/${id}`, {
@@ -79,7 +112,6 @@ export default function SalespersonsPage() {
       toast({ title: "Failed to update salesperson", variant: "destructive" });
     },
   });
-
   const deleteSalesperson = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/salespersons/${id}`, {
@@ -103,19 +135,10 @@ export default function SalespersonsPage() {
     sp.phone?.toLowerCase().includes(search.toLowerCase()) ||
     sp.email?.toLowerCase().includes(search.toLowerCase())
   );
-
   const getSalesTotal = (spId: string) =>
     orders.filter((o: any) => o.salespersonId === spId).reduce((sum: number, o: any) => sum + (o.totalAmount || 0), 0);
-
   const getOrderCount = (spId: string) =>
     orders.filter((o: any) => o.salespersonId === spId).length;
-
-  const stats = {
-    total: salespersons.length,
-    active: salespersons.filter((sp: any) => sp.status === "active").length,
-    totalSales: orders.reduce((sum: number, o: any) => sum + (o.totalAmount || 0), 0),
-    totalOrders: orders.length,
-  };
 
   if (isError) {
     return (
@@ -136,44 +159,39 @@ export default function SalespersonsPage() {
           <h1 className="text-2xl font-bold">Salespersons</h1>
           <p className="text-muted-foreground">Manage your sales team members</p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setEditingSalesperson(null); }}>
-          <DialogTrigger asChild>
-            <Button><Plus className="h-4 w-4 mr-2" /> Add Salesperson</Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>{editingSalesperson ? "Edit Salesperson" : "Add Salesperson"}</DialogTitle>
-            </DialogHeader>
-            <SalespersonForm
-              initialData={editingSalesperson}
-              onSubmit={(data) => {
-                if (editingSalesperson) {
-                  updateSalesperson.mutate({ id: editingSalesperson.id, data });
-                } else {
-                  createSalesperson.mutate(data);
-                }
-              }}
-              isLoading={createSalesperson.isPending || updateSalesperson.isPending}
-            />
-          </DialogContent>
-        </Dialog>
+        {(isAdmin || isManager) && (
+          <Dialog open={dialogOpen} onOpenChange={open => { setDialogOpen(open); if (!open) setEditingSalesperson(null); }}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" /> Add Salesperson</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>{editingSalesperson ? "Edit Salesperson" : "Add Salesperson"}</DialogTitle>
+              </DialogHeader>
+              <SalespersonForm
+                initialData={editingSalesperson}
+                onSubmit={data => {
+                  if (editingSalesperson) {
+                    updateSalesperson.mutate({ id: editingSalesperson.id, data });
+                  } else {
+                    createSalesperson.mutate(data);
+                  }
+                }}
+                isLoading={createSalesperson.isPending || updateSalesperson.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatMini label="Total Salespersons" value={stats.total} icon={Users} />
-        <StatMini label="Active" value={stats.active} icon={Users} />
-        <StatMini label="Total Sales" value={`KES ${stats.totalSales.toLocaleString()}`} icon={DollarSign} />
-        <StatMini label="Total Orders" value={stats.totalOrders} icon={Users} />
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          placeholder="Search salespersons..."
+          className="pl-9"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
       </div>
-
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input placeholder="Search salespersons..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-      </div>
-
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -233,68 +251,5 @@ export default function SalespersonsPage() {
         </CardContent>
       </Card>
     </div>
-  );
-}
-
-function StatMini({ label, value, icon: Icon }: { label: string; value: string | number; icon: React.ElementType }) {
-  return (
-    <Card>
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center">
-          <Icon className="h-4 w-4 text-primary" />
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          <p className="text-lg font-bold">{value}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function SalespersonForm({
-  initialData,
-  onSubmit,
-  isLoading,
-}: {
-  initialData?: any;
-  onSubmit: (data: Record<string, unknown>) => void;
-  isLoading: boolean;
-}) {
-  const [form, setForm] = useState({
-    name: initialData?.name || "",
-    phone: initialData?.phone || "",
-    email: initialData?.email || "",
-    status: initialData?.status || "active",
-  });
-
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }} className="flex flex-col gap-4">
-      <div>
-        <Label>Full Name</Label>
-        <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" required />
-      </div>
-      <div>
-        <Label>Phone Number</Label>
-        <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+254..." required />
-      </div>
-      <div>
-        <Label>Email</Label>
-        <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
-      </div>
-      <div>
-        <Label>Status</Label>
-        <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="inactive">Inactive</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <Button type="submit" disabled={isLoading || !form.name || !form.phone}>
-        {isLoading ? "Saving..." : initialData ? "Update Salesperson" : "Add Salesperson"}
-      </Button>
-    </form>
   );
 }
