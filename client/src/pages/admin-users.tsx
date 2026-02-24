@@ -119,7 +119,7 @@ export default function AdminUsersPage() {
           <h1 className="text-2xl font-bold">User Management</h1>
           <p className="text-muted-foreground">Create and manage user accounts</p>
         </div>
-        {(isAdmin || isManager) && (
+        {isManager && (
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
               <Button>

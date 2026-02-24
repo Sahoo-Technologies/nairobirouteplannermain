@@ -664,6 +664,7 @@ export async function registerRoutes(
   import { isManager } from "./auth";
 
   app.post("/api/admin/users", isManager, async (req, res) => {
+    // Only managers can create users (not regular users)
     try {
       const { email, password, firstName, lastName, role } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
@@ -672,6 +673,11 @@ export async function registerRoutes(
       if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
       if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
         return res.status(400).json({ error: "Password must contain uppercase, lowercase, and a digit" });
+      }
+
+      // Prevent creation of any admin except the environment admin
+      if (role === "admin" && email.toLowerCase() !== String(process.env.ADMIN_EMAIL).toLowerCase()) {
+        return res.status(400).json({ error: "Only the environment admin can have the admin role" });
       }
 
       // Check if user already exists
@@ -684,7 +690,7 @@ export async function registerRoutes(
         passwordHash,
         firstName: firstName || null,
         lastName: lastName || null,
-        role: ["admin", "manager", "user"].includes(role) ? role : "user",
+        role: (role === "admin" && email.toLowerCase() === String(process.env.ADMIN_EMAIL).toLowerCase()) ? "admin" : (role === "manager" ? "manager" : "user"),
       }).returning();
 
       // Send credentials email
@@ -709,7 +715,17 @@ export async function registerRoutes(
       const updates: Record<string, any> = { updatedAt: new Date() };
       if (firstName !== undefined) updates.firstName = firstName;
       if (lastName !== undefined) updates.lastName = lastName;
-      if (role !== undefined) updates.role = role === "admin" ? "admin" : "user";
+
+      // Prevent updating any user to admin except the environment admin
+      if (role !== undefined) {
+        // Get the user's email
+        const [user] = await db.select({ email: users.email }).from(users).where(eq(users.id, req.params.id)).limit(1);
+        if (!user) return res.status(404).json({ error: "User not found" });
+        if (role === "admin" && user.email.toLowerCase() !== String(process.env.ADMIN_EMAIL).toLowerCase()) {
+          return res.status(400).json({ error: "Only the environment admin can have the admin role" });
+        }
+        updates.role = (role === "admin" && user.email.toLowerCase() === String(process.env.ADMIN_EMAIL).toLowerCase()) ? "admin" : (role === "manager" ? "manager" : "user");
+      }
       if (password) updates.passwordHash = await hashPassword(password);
 
       const [updated] = await db.update(users).set(updates).where(eq(users.id, req.params.id)).returning();
