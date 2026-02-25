@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { initializeEmailTransporter } from "./email";
+import { validateEnvironment, printEnvironmentValidation } from "./env-validation";
+import { errorHandler, notFoundHandler, setupUnhandledRejectionHandler } from "./error-handling";
 
 const app = express();
 const httpServer = createServer(app);
@@ -51,26 +53,24 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Setup global error handlers first
+  setupUnhandledRejectionHandler();
+
+  // Validate environment variables first
+  console.log("🔍 Validating environment variables...");
+  const envValidation = validateEnvironment();
+  printEnvironmentValidation(envValidation);
+
   // Initialize email transporter for password reset
   initializeEmailTransporter();
   
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    // Never leak internal error details in production
-    const message = process.env.NODE_ENV === "production" && status >= 500
-      ? "Internal Server Error"
-      : err.message || "Internal Server Error";
+  // 404 handler (must be before error handler)
+  app.use(notFoundHandler);
 
-    console.error("Internal Server Error:", err);
-
-    if (res.headersSent) {
-      return next(err);
-    }
-
-    return res.status(status).json({ message });
-  });
+  // Centralized error handling middleware (must be last)
+  app.use(errorHandler);
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route

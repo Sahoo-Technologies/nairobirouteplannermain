@@ -8,6 +8,8 @@ import { openai } from "./openai-client";
 import { db } from "../db";
 import { shops, drivers, routes, targets, analyticsReports } from "@shared/schema";
 import { desc } from "drizzle-orm";
+import { aiUsageMonitor, aiUsageMiddleware } from "./usage-monitor";
+import { ExternalServiceError } from "../error-handling";
 
 const periodSchema = z.enum(["daily", "weekly", "monthly"]).default("weekly");
 const reportTypeSchema = z.enum(["fleet_overview", "route_optimization", "demand_forecast", "driver_performance"]).default("fleet_overview");
@@ -16,19 +18,78 @@ const QUERY_LIMIT = 50;
 
 export function registerAnalyticsRoutes(app: Express): void {
   
-  app.post("/api/analytics/optimize-route/:routeId", isAuthenticated, async (req: Request, res: Response) => {
+  // AI Usage Monitoring Endpoints
+  app.get("/api/analytics/usage", isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const routeIdResult = uuidSchema.safeParse(req.params.routeId);
-      if (!routeIdResult.success) {
-        return res.status(400).json({ error: "Invalid route ID format" });
-      }
-      const result = await optimizeRoute(routeIdResult.data);
-      res.json(result);
+      const report = aiUsageMonitor.getUsageReport();
+      res.json(report);
     } catch (error) {
-      console.error("Route optimization error:", error);
-      res.status(500).json({ error: "Failed to optimize route" });
+      console.error("Failed to fetch usage report:", error);
+      res.status(500).json({ error: "Failed to fetch usage report" });
     }
   });
+
+  app.get("/api/analytics/usage/history", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const history = aiUsageMonitor.getUsageHistory(limit);
+      res.json({ history });
+    } catch (error) {
+      console.error("Failed to fetch usage history:", error);
+      res.status(500).json({ error: "Failed to fetch usage history" });
+    }
+  });
+
+  app.put("/api/analytics/usage/limits", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { dailyCalls, monthlyCalls, monthlyCost } = req.body;
+      aiUsageMonitor.updateLimits({ dailyCalls, monthlyCalls, monthlyCost });
+      res.json({ message: "Usage limits updated successfully" });
+    } catch (error) {
+      console.error("Failed to update usage limits:", error);
+      res.status(500).json({ error: "Failed to update usage limits" });
+    }
+  });
+
+  app.post("/api/analytics/usage/estimate", isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { model, estimatedInputTokens, estimatedOutputTokens } = req.body;
+      
+      if (!model || !estimatedInputTokens) {
+        return res.status(400).json({ error: "Model and estimatedInputTokens are required" });
+      }
+
+      const canProceed = aiUsageMonitor.canMakeRequest(model, estimatedInputTokens, estimatedOutputTokens);
+      res.json(canProceed);
+    } catch (error) {
+      console.error("Failed to estimate usage:", error);
+      res.status(500).json({ error: "Failed to estimate usage" });
+    }
+  });
+  
+  app.post("/api/analytics/optimize-route/:routeId", 
+    isAuthenticated, 
+    aiUsageMiddleware("route-optimization", "gpt-5.2"),
+    async (req: Request, res: Response) => {
+      try {
+        // Check usage limits before processing
+        aiUsageMonitor.checkUsageLimits();
+        
+        const routeIdResult = uuidSchema.safeParse(req.params.routeId);
+        if (!routeIdResult.success) {
+          return res.status(400).json({ error: "Invalid route ID format" });
+        }
+        const result = await optimizeRoute(routeIdResult.data);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof ExternalServiceError) {
+          return res.status(429).json({ error: error.message });
+        }
+        console.error("Route optimization error:", error);
+        res.status(500).json({ error: "Failed to optimize route" });
+      }
+    }
+  );
 
   app.get("/api/analytics/route-optimizations", isAuthenticated, async (req: Request, res: Response) => {
     try {

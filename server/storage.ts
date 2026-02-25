@@ -701,13 +701,38 @@ export class MemStorage implements IStorage {
 }
 
 function createStorage(): IStorage {
-  if (process.env.DATABASE_URL) {
-    // Use real PostgreSQL database in production / when DATABASE_URL is set
-    const { DatabaseStorage } = require("./database-storage") as typeof import("./database-storage");
-    return new DatabaseStorage();
+  const isProduction = process.env.NODE_ENV === "production";
+  const hasDatabaseUrl = process.env.DATABASE_URL;
+  
+  if (isProduction && !hasDatabaseUrl) {
+    throw new Error(
+      "DATABASE_URL environment variable is required in production. " +
+      "Cannot run in production without a persistent database."
+    );
   }
-  // Fallback to in-memory storage for local dev without a database
-  return new MemStorage();
+  
+  if (hasDatabaseUrl) {
+    // Use real PostgreSQL database in production / when DATABASE_URL is set
+    try {
+      const { DatabaseStorage } = require("./database-storage") as typeof import("./database-storage");
+      return new DatabaseStorage();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      throw new Error(`Failed to initialize database storage: ${errorMessage}`);
+    }
+  }
+  
+  // Only allow in-memory storage in development with explicit warning
+  if (!isProduction) {
+    console.warn(
+      "⚠️  WARNING: Running with in-memory storage. All data will be lost on restart. " +
+      "Set DATABASE_URL to use persistent storage."
+    );
+    return new MemStorage();
+  }
+  
+  // This should never be reached due to production check above
+  throw new Error("Unable to initialize storage. Check DATABASE_URL configuration.");
 }
 
 export const storage: IStorage = createStorage();

@@ -5,13 +5,22 @@ import helmet from "helmet";
 import cors from "cors";
 import crypto from "crypto";
 import { storage } from "./storage";
+import { settingsManager } from "./secure-settings";
+import { healthCheck, readinessCheck, livenessCheck } from "./health-checks";
+import { 
+  adminDebugMiddleware, 
+  adminFixMiddleware, 
+  adminTestMiddleware, 
+  adminResetPasswordMiddleware 
+} from "./admin-debug";
+import { AdminRouteValidator } from "./admin-route-validator";
 import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSchema,
   insertProductSchema, insertSupplierSchema, insertProcurementSchema,
   insertSalespersonSchema, insertOrderSchema, insertOrderItemSchema,
   insertDispatchSchema, insertParcelSchema, insertPaymentSchema,
   insertStockMovementSchema, insertInventorySchema
 } from "@shared/schema";
-import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin, hashPassword } from "./auth";
+import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin, isManager, hashPassword } from "./auth";
 import { registerAnalyticsRoutes } from "./ai/analytics-routes";
 import { createBackup, getBackupHistory } from "./backup";
 import { db } from "./db";
@@ -38,8 +47,46 @@ function paginatedResponse<T>(data: T[], page: number, limit: number) {
 export async function registerRoutes(
   httpServer: Server,
   app: Express
-): Promise<Server> {
+): Promise<void> {
   
+  // Health check endpoints (no authentication required)
+  app.get("/health", healthCheck);
+  app.get("/ready", readinessCheck);
+  app.get("/live", livenessCheck);
+
+  // Admin debugging endpoints (development only)
+  if (process.env.NODE_ENV !== "production") {
+    app.get("/debug/admin", adminDebugMiddleware);
+    app.post("/debug/admin/fix", adminFixMiddleware);
+    app.post("/debug/admin/test", adminTestMiddleware);
+    app.post("/debug/admin/reset-password", adminResetPasswordMiddleware);
+    
+    // Route validation endpoints
+    app.get("/debug/routes", (req, res) => {
+      try {
+        const analysis = AdminRouteValidator.analyzeRoutes();
+        res.json(analysis);
+      } catch (error) {
+        res.status(500).json({
+          error: "Failed to analyze routes",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+    
+    app.get("/debug/routes/validate", (req, res) => {
+      try {
+        const validation = AdminRouteValidator.validateRouteConsistency();
+        res.json(validation);
+      } catch (error) {
+        res.status(500).json({
+          error: "Failed to validate routes",
+          message: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+  }
+
   // Set up authentication BEFORE other routes
   await setupAuth(app);
 
@@ -661,8 +708,6 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to fetch users" }); }
   });
 
-  import { isManager } from "./auth";
-
   app.post("/api/admin/users", isManager, async (req, res) => {
     // Only managers can create users (not regular users)
     try {
@@ -748,65 +793,66 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to delete user" }); }
   });
 
-  // ============ ADMIN: SETTINGS (ENV KEYS) ============
-  const ENV_KEYS = [
-    "DATABASE_URL", "SESSION_SECRET", "ADMIN_EMAIL", "AI_ADMIN_PASSWORD",
-    "CRON_SECRET", "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM",
-    "AI_INTEGRATIONS_OPENAI_API_KEY", "AI_INTEGRATIONS_OPENAI_BASE_URL", "CORS_ORIGIN",
-  ];
-
-  app.get("/api/admin/settings", isAdmin, (_req, res) => {
-    const settings: Record<string, string> = {};
-    for (const key of ENV_KEYS) {
-      const val = process.env[key];
-      // Mask secrets — only show last 4 chars
-      if (val && ["DATABASE_URL", "SESSION_SECRET", "AI_ADMIN_PASSWORD", "SMTP_PASS", "AI_INTEGRATIONS_OPENAI_API_KEY", "CRON_SECRET"].includes(key)) {
-        settings[key] = val.length > 4 ? "****" + val.slice(-4) : "****";
-      } else {
-        settings[key] = val || "";
-      }
+  // ============ ADMIN: SETTINGS (SECURE) ============
+  app.get("/api/admin/settings", isAdmin, (req, res) => {
+    try {
+      const userId = (req as any).user?.id;
+      const ip = req.ip;
+      const settings = settingsManager.getAllSettings(userId, ip);
+      res.json({ settings });
+    } catch (error) {
+      console.error("Error fetching settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
     }
-    res.json({ keys: ENV_KEYS, settings });
   });
 
-  app.put("/api/admin/settings", isAdmin, (req, res) => {
+  app.get("/api/admin/settings/:name", isAdmin, (req, res) => {
     try {
-      const updates: Record<string, string> = req.body;
-      const applied: string[] = [];
-
-      for (const [key, value] of Object.entries(updates)) {
-        if (!ENV_KEYS.includes(key)) continue;
-        // Skip masked values (unchanged)
-        if (typeof value === "string" && value.startsWith("****")) continue;
-        if (typeof value === "string" && value.trim() !== "") {
-          // Sanitize: strip newlines/carriage returns to prevent env injection
-          const sanitized = value.trim().replace(/[\r\n]/g, "");
-          process.env[key] = sanitized;
-          applied.push(key);
-        }
+      const { name } = req.params;
+      const userId = (req as any).user?.id;
+      const ip = req.ip;
+      const setting = settingsManager.getSetting(name, userId, ip);
+      
+      if (!setting) {
+        return res.status(404).json({ error: "Setting not found" });
       }
+      
+      res.json({ setting });
+    } catch (error) {
+      console.error("Error fetching setting:", error);
+      res.status(500).json({ error: "Failed to fetch setting" });
+    }
+  });
 
-      // Persist to .env file if possible
-      try {
-        const envPath = join(process.cwd(), ".env");
-        let envContent = "";
-        if (existsSync(envPath)) {
-          envContent = readFileSync(envPath, "utf-8");
-        }
-        for (const key of applied) {
-          const regex = new RegExp(`^${key}=.*$`, "m");
-          const line = `${key}=${process.env[key]}`;
-          if (regex.test(envContent)) {
-            envContent = envContent.replace(regex, line);
-          } else {
-            envContent += (envContent.endsWith("\n") || envContent === "" ? "" : "\n") + line + "\n";
-          }
-        }
-        writeFileSync(envPath, envContent);
-      } catch { /* .env write is best-effort */ }
+  app.put("/api/admin/settings/:name", isAdmin, (req, res) => {
+    try {
+      const { name } = req.params;
+      const { value } = req.body;
+      const userId = (req as any).user?.id;
+      const ip = req.ip;
+      
+      const result = settingsManager.updateSetting(name, value, userId, ip);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: result.error });
+      }
+      
+      res.json({ success: true, message: "Setting updated successfully" });
+    } catch (error) {
+      console.error("Error updating setting:", error);
+      res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
 
-      res.json({ success: true, applied });
-    } catch { res.status(500).json({ error: "Failed to save settings" }); }
+  app.get("/api/admin/settings/audit", isAdmin, (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const auditLog = settingsManager.getAuditLog(limit);
+      res.json({ auditLog });
+    } catch (error) {
+      console.error("Error fetching audit log:", error);
+      res.status(500).json({ error: "Failed to fetch audit log" });
+    }
   });
 
   // ============ BACKUP ============
