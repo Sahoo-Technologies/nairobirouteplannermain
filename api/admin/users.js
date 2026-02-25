@@ -2,19 +2,46 @@
 
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { users } from '../../shared/models/auth';
+import { sql } from 'drizzle-orm';
+import { pgTable, varchar, timestamp, jsonb, index } from 'drizzle-orm/pg-core';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+
+// Import unused jwt removed
+
+
+// duplicate users table definition from shared/models/auth.ts
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").unique(),
+  passwordHash: varchar("password_hash"),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  profileImageUrl: varchar("profile_image_url"),
+  role: varchar("role").default("user").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// sessions table definition to look up session cookie
+export const sessions = pgTable(
+  "sessions",
+  {
+    sid: varchar("sid").primaryKey(),
+    sess: jsonb("sess").notNull(),
+    expire: timestamp("expire").notNull(),
+  },
+  (table) => [index("IDX_session_expire").on(table.expire)]
+);
 
 async function requireAdmin(req, res) {
-  const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
-  if (!token) return false;
-  try {
-    const decoded = jwt.verify(token, process.env.SESSION_SECRET);
-    return decoded && decoded.role === 'admin';
-  } catch {
-    return false;
-  }
+  const sid = req.cookies?.__veew_sid;
+  if (!sid) return false;
+  // fetch session data
+  const [row] = await db.select({ sess: sessions.sess }).from(sessions).where(sessions.sid.eq(sid));
+  if (!row || !row.sess || !row.sess.userId) return false;
+  const userId = row.sess.userId;
+  const [user] = await db.select().from(users).where(users.id.eq(userId)).limit(1);
+  return user && user.role === 'admin';
 }
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
