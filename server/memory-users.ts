@@ -226,3 +226,9 @@ export async function getAllMemoryUsers(): Promise<User[]> {
 export async function deleteMemoryUser(email: string): Promise<boolean> {
   return memoryUserStore.deleteUser(email);
 }
+
+export async function deleteMemoryUserById(id: string): Promise<boolean> {
+  const user = await memoryUserStore.getUserById(id);
+  if (!user) return false;
+  return memoryUserStore.deleteUser(user.email);
+}

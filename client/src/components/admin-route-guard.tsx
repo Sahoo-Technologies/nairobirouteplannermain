@@ -11,7 +11,7 @@ interface AdminRouteGuardProps {
 }
 
 export function AdminRouteGuard({ children, fallback }: AdminRouteGuardProps) {
-  const { user, isAdmin, isLoading } = useAuth();
+  const { user, isAdmin, isLoading, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -43,8 +43,8 @@ export function AdminRouteGuard({ children, fallback }: AdminRouteGuardProps) {
             <Button variant="outline" asChild>
               <Link href="/">Back to Dashboard</Link>
             </Button>
-            <Button variant="ghost" asChild>
-              <Link href="/logout">Logout</Link>
+            <Button variant="ghost" onClick={() => logout()}>
+              Logout
             </Button>
           </div>
         </div>
@@ -61,7 +61,7 @@ interface ManagerRouteGuardProps {
 }
 
 export function ManagerRouteGuard({ children, fallback }: ManagerRouteGuardProps) {
-  const { user, isManager, isAdmin, isLoading } = useAuth();
+  const { user, isManager, isAdmin, isLoading, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -93,8 +93,8 @@ export function ManagerRouteGuard({ children, fallback }: ManagerRouteGuardProps
             <Button variant="outline" asChild>
               <Link href="/">Back to Dashboard</Link>
             </Button>
-            <Button variant="ghost" asChild>
-              <Link href="/logout">Logout</Link>
+            <Button variant="ghost" onClick={() => logout()}>
+              Logout
             </Button>
           </div>
         </div>

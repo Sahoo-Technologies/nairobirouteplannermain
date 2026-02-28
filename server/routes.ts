@@ -21,7 +21,7 @@ import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSc
   insertStockMovementSchema, insertInventorySchema
 } from "@shared/schema";
 import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin, isManager, hashPassword } from "./auth";
-import { getAllUsers, createUser, updateUser } from "./auth";
+import { getAllUsers, createUser, updateUser, deleteUserById } from "./auth";
 import { registerAnalyticsRoutes } from "./ai/analytics-routes";
 import { createBackup, getBackupHistory } from "./backup";
 import { db } from "./db";
@@ -219,6 +219,26 @@ export async function registerRoutes(
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ error: "Failed to delete shop" });
+    }
+  });
+
+  // Bulk create shops - useful for performance / large payload tests
+  app.post("/api/shops/batch", isAuthenticated, async (req, res) => {
+    try {
+      const { shops } = req.body;
+      if (!Array.isArray(shops)) {
+        return res.status(400).json({ error: "Invalid shops payload" });
+      }
+      const created: any[] = [];
+      for (const s of shops) {
+        const parsed = insertShopSchema.safeParse(s);
+        if (!parsed.success) continue; // skip invalid entries
+        const shop = await storage.createShop(parsed.data);
+        created.push(shop);
+      }
+      res.json({ data: created });
+    } catch (error) {
+      res.status(500).json({ error: "Batch create failed" });
     }
   });
 
@@ -727,7 +747,8 @@ export async function registerRoutes(
       }
 
       // Check if user already exists
-      const existing = await getAllUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+      const allUsersForCheck = await getAllUsers();
+      const existing = allUsersForCheck.find((u) => u.email?.toLowerCase() === email.toLowerCase());
       if (existing) return res.status(409).json({ error: "A user with this email already exists" });
 
       const newUser = await createUser({
@@ -842,7 +863,8 @@ export async function registerRoutes(
       if (password) updates.password = password;
 
       // Get the user again for the update call
-      const userForUpdate = await getAllUsers().find(u => u.id === req.params.id);
+      const allUsersForUpdate = await getAllUsers();
+      const userForUpdate = allUsersForUpdate.find((u) => u.id === req.params.id);
       if (!userForUpdate) return res.status(404).json({ error: "User not found" });
       
       const updated = await updateUser(userForUpdate.email, updates);
@@ -859,7 +881,7 @@ export async function registerRoutes(
       if (req.session.userId === req.params.id) {
         return res.status(400).json({ error: "Cannot delete your own account" });
       }
-      const [deleted] = await db.delete(users).where(eq(users.id, req.params.id)).returning();
+      const deleted = await deleteUserById(req.params.id);
       if (!deleted) return res.status(404).json({ error: "User not found" });
       res.status(204).send();
     } catch { res.status(500).json({ error: "Failed to delete user" }); }
@@ -868,27 +890,64 @@ export async function registerRoutes(
   // ============ ADMIN: SETTINGS (SECURE) ============
   app.get("/api/admin/settings", isAdmin, (req, res) => {
     try {
-      const userId = (req as any).user?.id;
+      const userId = req.session.userId;
       const ip = req.ip;
-      const settings = settingsManager.getAllSettings(userId, ip);
-      res.json({ settings });
+      const settingsArray = settingsManager.getAllSettings(userId, ip);
+      // Client expects { keys: string[], settings: Record<string, string> }
+      const keys = settingsArray.map((s) => s.name);
+      const settings = Object.fromEntries(settingsArray.map((s) => [s.name, s.value]));
+      res.json({ keys, settings });
     } catch (error) {
       console.error("Error fetching settings:", error);
       res.status(500).json({ error: "Failed to fetch settings" });
     }
   });
 
+  app.put("/api/admin/settings", isAdmin, (req, res) => {
+    try {
+      const userId = req.session.userId;
+      const ip = req.ip;
+      const updates = req.body as Record<string, string>;
+      if (!updates || typeof updates !== "object") {
+        return res.status(400).json({ error: "Invalid request body" });
+      }
+      const applied: string[] = [];
+      for (const [name, value] of Object.entries(updates)) {
+        if (typeof value !== "string") continue;
+        // Skip masked placeholders — client sends "****" or "****xx" for unchanged secrets
+        if (value.startsWith("****")) continue;
+        const result = settingsManager.updateSetting(name, value, userId, ip);
+        if (result.success) applied.push(name);
+      }
+      res.json({ success: true, applied });
+    } catch (error) {
+      console.error("Error updating settings:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  app.get("/api/admin/settings/audit", isAdmin, (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const auditLog = settingsManager.getAuditLog(limit);
+      res.json({ auditLog });
+    } catch (error) {
+      console.error("Error fetching audit log:", error);
+      res.status(500).json({ error: "Failed to fetch audit log" });
+    }
+  });
+
   app.get("/api/admin/settings/:name", isAdmin, (req, res) => {
     try {
       const { name } = req.params;
-      const userId = (req as any).user?.id;
+      const userId = req.session.userId;
       const ip = req.ip;
       const setting = settingsManager.getSetting(name, userId, ip);
-      
+
       if (!setting) {
         return res.status(404).json({ error: "Setting not found" });
       }
-      
+
       res.json({ setting });
     } catch (error) {
       console.error("Error fetching setting:", error);
@@ -900,15 +959,15 @@ export async function registerRoutes(
     try {
       const { name } = req.params;
       const { value } = req.body;
-      const userId = (req as any).user?.id;
+      const userId = req.session.userId;
       const ip = req.ip;
-      
+
       const result = settingsManager.updateSetting(name, value, userId, ip);
-      
+
       if (!result.success) {
         return res.status(400).json({ error: result.error });
       }
-      
+
       res.json({ success: true, message: "Setting updated successfully" });
     } catch (error) {
       console.error("Error updating setting:", error);

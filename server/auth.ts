@@ -8,7 +8,7 @@ import crypto from "crypto";
 import { db } from "./db";
 import { users, passwordResetTokens } from "@shared/models/auth";
 import type { User } from "@shared/models/auth";
-import { memoryDb, getMemoryUserByEmail, createMemoryUser, updateMemoryUser, getAllMemoryUsers } from "./memory-users";
+import { memoryDb, getMemoryUserByEmail, createMemoryUser, updateMemoryUser, getAllMemoryUsers, deleteMemoryUserById } from "./memory-users";
 import { and, gt, isNull } from "drizzle-orm";
 import { pool } from "./db";
 import { sendPasswordResetEmail, isEmailConfigured } from "./email";
@@ -70,6 +70,27 @@ export async function setupAuth(app: Express) {
 }
 
 export function registerAuthRoutes(app: Express) {
+  // Public registration endpoint
+  app.post("/api/auth/register", async (req: Request, res: Response) => {
+    try {
+      const { email, password, firstName, lastName } = req.body;
+      if (!email || !password) {
+        return res.status(400).json({ error: "Email and password are required" });
+      }
+      const existing = await getUserByEmail(email.toLowerCase());
+      if (existing) {
+        return res.status(409).json({ error: "User already exists" });
+      }
+      const newUser = await createUser({ email, password, firstName, lastName });
+      // Do not expose passwordHash
+      const { passwordHash, ...userData } = newUser as any;
+      res.status(201).json({ user: userData });
+    } catch (error) {
+      console.error("Registration error:", error);
+      res.status(500).json({ error: "Registration failed" });
+    }
+  });
+
   // Login endpoint
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
@@ -430,20 +451,38 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
   next();
 }
 
-export function isAdmin(req: Request, res: Response, next: NextFunction) {
+/** Get user role by ID — checks both database and memory (for when DB unavailable) */
+async function getUserRole(userId: string): Promise<string | null> {
+  if (isDatabaseAvailable()) {
+    try {
+      const [row] = await db
+        .select({ role: users.role })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (row) return row.role;
+    } catch {
+      // Database failed, fall through to memory
+    }
+  }
+  const allUsers = await getAllUsers();
+  const user = allUsers.find((u) => u.id === userId);
+  return user?.role ?? null;
+}
+
+export async function isAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  // Look up user role from the database
-  const userId = req.session.userId;
-  db.select({ role: users.role }).from(users).where(eq(users.id, userId)).then((rows) => {
-    if (!rows.length || rows[0].role !== "admin") {
+  try {
+    const role = await getUserRole(req.session.userId);
+    if (role !== "admin") {
       return res.status(403).json({ error: "Admin access required" });
     }
     next();
-  }).catch(() => {
+  } catch {
     res.status(500).json({ error: "Authorization check failed" });
-  });
+  }
 }
 
 // Helper function to hash password
@@ -453,7 +492,7 @@ export async function hashPassword(password: string): Promise<string> {
 
 // Helper function to check if database is available
 function isDatabaseAvailable(): boolean {
-  return process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
+  return !!process.env.DATABASE_URL && process.env.DATABASE_URL.length > 0;
 }
 
 // Helper function to get user (database or memory)
@@ -585,24 +624,33 @@ export async function ensureAdminUser(email: string, password: string) {
   }
 }
 
-export function isManager(req: Request, res: Response, next: NextFunction) {
+export async function isManager(req: Request, res: Response, next: NextFunction) {
   if (!req.session.userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
-  const userId = req.session.userId;
-  db.select({ role: users.role })
-    .from(users)
-    .where(eq(users.id, userId))
-    .then((rows) => {
-      if (!rows.length || (rows[0].role !== "manager" && rows[0].role !== "admin")) {
-        return res.status(403).json({ error: "Manager or admin access required" });
-      }
-      next();
-    })
-    .catch(() => {
-      res.status(500).json({ error: "Authorization check failed" });
-    });
+  try {
+    const role = await getUserRole(req.session.userId);
+    if (role !== "manager" && role !== "admin") {
+      return res.status(403).json({ error: "Manager or admin access required" });
+    }
+    next();
+  } catch {
+    res.status(500).json({ error: "Authorization check failed" });
+  }
+}
+
+// Helper function to delete user by ID (database or memory)
+async function deleteUserById(userId: string): Promise<boolean> {
+  if (isDatabaseAvailable()) {
+    try {
+      const [deleted] = await db.delete(users).where(eq(users.id, userId)).returning();
+      return !!deleted;
+    } catch {
+      return await deleteMemoryUserById(userId);
+    }
+  }
+  return await deleteMemoryUserById(userId);
 }
 
 // Export hybrid user management functions
-export { getUserByEmail, createUser, updateUser, getAllUsers };
+export { getUserByEmail, createUser, updateUser, getAllUsers, deleteUserById };
