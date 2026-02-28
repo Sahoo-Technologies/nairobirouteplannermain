@@ -38,12 +38,16 @@ export function useAuth() {
     },
   });
 
+  const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager" || isAdmin;
+
   return {
     user,
     isLoading,
     isAuthenticated: !!user,
-    isAdmin: user?.role === "admin",
-    isManager: user?.role === "manager",
+    isAdmin,
+    isManager,
+    canManageUsers: isAdmin || isManager,
     logout: logoutMutation.mutate,
     isLoggingOut: logoutMutation.isPending,
   };

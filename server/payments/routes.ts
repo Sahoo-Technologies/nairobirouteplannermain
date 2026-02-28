@@ -84,8 +84,8 @@ export function registerPaymentRoutes(app: Express): void {
         await storage.updatePayment(paymentId, {
           status: "processing",
           mpesaReference: result.CheckoutRequestID,
-          gatewayResponse: result as any,
-        } as any);
+          gatewayResponse: result,
+        });
       }
 
       res.json({
@@ -116,8 +116,8 @@ export function registerPaymentRoutes(app: Express): void {
           status: result.success ? "confirmed" : "failed",
           mpesaReceiptNumber: result.mpesaReceiptNumber || null,
           phone: result.phoneNumber ? String(result.phoneNumber) : payment.phone,
-          gatewayResponse: result as any,
-        } as any);
+          gatewayResponse: result,
+        });
       }
 
       // Always respond 200 to Safaricom
@@ -156,12 +156,11 @@ export function registerPaymentRoutes(app: Express): void {
         description: `Payment for order ${orderNumber || paymentId}`,
       });
 
-      // Mark as processing
       await storage.updatePayment(paymentId, {
         status: "processing",
         flutterwaveRef: paymentId,
-        gatewayResponse: result as any,
-      } as any);
+        gatewayResponse: result,
+      });
 
       res.json({ success: true, paymentLink: result.data.link });
     } catch (err: any) {
@@ -191,8 +190,8 @@ export function registerPaymentRoutes(app: Express): void {
             status: isSuccess ? "confirmed" : "failed",
             flutterwaveTxId: String(txId),
             flutterwaveRef: verification.data.flw_ref,
-            gatewayResponse: verification.data as any,
-          } as any);
+            gatewayResponse: verification.data,
+          });
         }
       }
 
@@ -217,8 +216,8 @@ export function registerPaymentRoutes(app: Express): void {
           status: isSuccess ? "confirmed" : "failed",
           flutterwaveTxId: String(transactionId),
           flutterwaveRef: verification.data.flw_ref,
-          gatewayResponse: verification.data as any,
-        } as any);
+          gatewayResponse: verification.data,
+        });
       }
 
       res.json({ success: isSuccess, data: verification.data });
@@ -258,8 +257,8 @@ export function registerPaymentRoutes(app: Express): void {
         status: "processing",
         cryptoAddress: JSON.stringify(charge.addresses),
         cryptoAmountUsd: convertKesToUsd(Number(amountKes)),
-        gatewayResponse: charge as any,
-      } as any);
+        gatewayResponse: charge,
+      });
 
       res.json({
         success: true,
@@ -291,18 +290,17 @@ export function registerPaymentRoutes(app: Express): void {
         const paymentId = event.data.metadata.payment_id;
         const newStatus = mapCoinbaseEventToStatus(event.type);
 
-        const updates: Record<string, any> = {
+        const updates: Record<string, unknown> = {
           status: newStatus,
           gatewayResponse: event.data,
         };
 
-        // Extract tx hash from timeline
         if (event.data.payments?.[0]?.transaction_id) {
           updates.cryptoTxHash = event.data.payments[0].transaction_id;
           updates.cryptoNetwork = event.data.payments[0].network || null;
         }
 
-        await storage.updatePayment(paymentId, updates as any);
+        await storage.updatePayment(paymentId, updates as Parameters<typeof storage.updatePayment>[1]);
       }
 
       res.status(200).json({ status: "ok" });

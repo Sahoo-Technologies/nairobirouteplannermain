@@ -21,9 +21,10 @@ import { insertShopSchema, insertDriverSchema, insertRouteSchema, insertTargetSc
   insertStockMovementSchema, insertInventorySchema,
   type Shop
 } from "@shared/schema";
-import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin, isManager, hashPassword } from "./auth";
+import { setupAuth, registerAuthRoutes, ensureAdminUser, isAuthenticated, isAdmin, isManager, hashPassword, getUserRole } from "./auth";
 import { getAllUsers, createUser, updateUser, deleteUserById } from "./auth";
 import { registerAnalyticsRoutes } from "./ai/analytics-routes";
+import { registerPaymentRoutes } from "./payments/routes";
 import { createBackup, getBackupHistory } from "./backup";
 import { db } from "./db";
 import { users } from "@shared/models/auth";
@@ -50,7 +51,7 @@ function paginatedResponse<T>(data: T[], page: number, limit: number) {
 export async function registerRoutes(
   httpServer: Server,
   app: Express
-): Promise<void> {
+): Promise<Server> {
   
   // Health check endpoints (no authentication required)
   app.get("/health", healthCheck);
@@ -723,8 +724,44 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to update payment" }); }
   });
 
-  // ============ ADMIN: USER MANAGEMENT ============
-  app.get("/api/admin/users", isAdmin, async (req, res) => {
+  // Payment gateway routes (M-Pesa, Flutterwave, Crypto)
+  registerPaymentRoutes(app);
+
+  // ============ USER MANAGEMENT (Admin + Manager) ============
+  const VALID_ROLES = ["admin", "manager", "driver", "salesperson", "finance", "warehouse", "user"] as const;
+  const MANAGER_ASSIGNABLE_ROLES = ["manager", "driver", "salesperson", "finance", "warehouse", "user"] as const;
+
+  function validatePassword(password: string): string | null {
+    if (password.length < 8) return "Password must be at least 8 characters";
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      return "Password must contain uppercase, lowercase, and a digit";
+    }
+    return null;
+  }
+
+  async function sendWelcomeEmail(email: string) {
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS || !transporter) return;
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM,
+        to: email,
+        subject: "Your Veew Distributors Account",
+        html: `
+          <h2>Welcome to Veew Distributors!</h2>
+          <p>Your account has been created.</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p>Your temporary password has been set. For security, please reset your password immediately using the link below.</p>
+          <p><a href="${process.env.CORS_ORIGIN || 'http://localhost:5000'}/forgot-password">Reset Your Password</a></p>
+          <p>If you did not expect this account, please ignore this email.</p>
+        `,
+      });
+    } catch (emailError) {
+      console.error("Failed to send welcome email:", emailError);
+    }
+  }
+
+  // List users — admin sees all, manager sees non-admin users
+  app.get("/api/admin/users", isManager, async (req, res) => {
     try {
       const { page, limit } = parsePagination(req);
       const allUsers = await getAllUsers();
@@ -732,24 +769,36 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to fetch users" }); }
   });
 
-  app.post("/api/admin/users", isAdmin, async (req, res) => {
-    // Only admins can create users (changed from isManager for consistency)
+  // Create user — admin can assign any role; manager can assign non-admin roles
+  app.post("/api/admin/users", isManager, async (req, res) => {
     try {
       const { email, password, firstName, lastName, role } = req.body;
       if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
 
-      // Password complexity: min 8, uppercase, lowercase, digit
-      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
-      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-        return res.status(400).json({ error: "Password must contain uppercase, lowercase, and a digit" });
+      const pwdError = validatePassword(password);
+      if (pwdError) return res.status(400).json({ error: pwdError });
+
+      const requestedRole = role || "user";
+      if (!VALID_ROLES.includes(requestedRole)) {
+        return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}` });
       }
 
-      // Prevent creation of any admin except the environment admin
-      if (role === "admin" && email.toLowerCase() !== String(process.env.ADMIN_EMAIL).toLowerCase()) {
-        return res.status(400).json({ error: "Only the environment admin can have the admin role" });
+      const callerRole = await getUserRole(req.session.userId!);
+      const isCallerAdmin = callerRole === "admin";
+
+      if (requestedRole === "admin") {
+        if (!isCallerAdmin) {
+          return res.status(403).json({ error: "Only admins can assign the admin role" });
+        }
+        if (email.toLowerCase() !== String(process.env.ADMIN_EMAIL).toLowerCase()) {
+          return res.status(400).json({ error: "Only the environment admin email can have the admin role" });
+        }
       }
 
-      // Check if user already exists
+      if (!isCallerAdmin && !(MANAGER_ASSIGNABLE_ROLES as readonly string[]).includes(requestedRole)) {
+        return res.status(403).json({ error: "Managers cannot assign this role" });
+      }
+
       const allUsersForCheck = await getAllUsers();
       const existing = allUsersForCheck.find((u) => u.email?.toLowerCase() === email.toLowerCase());
       if (existing) return res.status(409).json({ error: "A user with this email already exists" });
@@ -759,117 +808,57 @@ export async function registerRoutes(
         password,
         firstName: firstName || null,
         lastName: lastName || null,
-        role: (role === "admin" && email.toLowerCase() === String(process.env.ADMIN_EMAIL).toLowerCase()) ? "admin" : (role === "manager" ? "manager" : "user"),
+        role: requestedRole,
       });
 
-      // Send credentials email
-      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && transporter) {
-        try {
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM,
-            to: email,
-            subject: "Your Veew Distributors Account",
-            html: `
-              <h2>Welcome to Veew Distributors!</h2>
-              <p>Your account has been created.</p>
-              <p><strong>Email:</strong> ${email}</p>
-              <p>Your temporary password has been set by an administrator. For security, please reset your password immediately using the link below.</p>
-              <p><a href="${process.env.CORS_ORIGIN || 'http://localhost:5000'}/forgot-password">Reset Your Password</a></p>
-              <p>If you did not expect this account, please ignore this email.</p>
-            `,
-          });
-        } catch (emailError) {
-          console.error("Failed to send welcome email:", emailError);
-        }
-      }
+      await sendWelcomeEmail(email);
 
       const { passwordHash: _, ...userData } = newUser;
       res.status(201).json(userData);
     } catch { res.status(500).json({ error: "Failed to create user" }); }
   });
 
-  // Manager route for creating users (limited to non-admin roles)
-  app.post("/api/manager/users", isManager, async (req, res) => {
-    // Managers can create users but not admins
-    try {
-      const { email, password, firstName, lastName, role } = req.body;
-      if (!email || !password) return res.status(400).json({ error: "Email and password are required" });
-
-      // Managers cannot create admin users
-      if (role === "admin") {
-        return res.status(403).json({ error: "Managers cannot create admin users" });
-      }
-
-      // Password complexity: min 8, uppercase, lowercase, digit
-      if (password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters" });
-      if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-        return res.status(400).json({ error: "Password must contain uppercase, lowercase, and a digit" });
-      }
-
-      // Check if user already exists
-      const [existing] = await db.select().from(users).where(eq(users.email, email.toLowerCase())).limit(1);
-      if (existing) return res.status(409).json({ error: "A user with this email already exists" });
-
-      const passwordHash = await hashPassword(password);
-      const [newUser] = await db.insert(users).values({
-        email: email.toLowerCase(),
-        passwordHash,
-        firstName: firstName || null,
-        lastName: lastName || null,
-        role: role === "manager" ? "manager" : "user",
-      }).returning();
-
-      // Send credentials email
-      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS && transporter) {
-        try {
-          await transporter.sendMail({
-            from: process.env.SMTP_FROM,
-            to: email,
-            subject: "Your Veew Distributors Account",
-            html: `
-              <h2>Welcome to Veew Distributors!</h2>
-              <p>Your account has been created.</p>
-              <p><strong>Email:</strong> ${email}</p>
-              <p>Your temporary password has been set by a manager. For security, please reset your password immediately using the link below.</p>
-              <p><a href="${process.env.CORS_ORIGIN || 'http://localhost:5000'}/forgot-password">Reset Your Password</a></p>
-              <p>If you did not expect this account, please ignore this email.</p>
-            `,
-          });
-        } catch (emailError) {
-          console.error("Failed to send welcome email:", emailError);
-        }
-      }
-
-      const { passwordHash: _, ...userData } = newUser;
-      res.status(201).json(userData);
-    } catch { res.status(500).json({ error: "Failed to create user" }); }
-  });
-
-  app.patch("/api/admin/users/:id", isAdmin, async (req, res) => {
+  app.patch("/api/admin/users/:id", isManager, async (req, res) => {
     try {
       const { firstName, lastName, role, password } = req.body;
       const updates: Record<string, string | Date> = { updatedAt: new Date() };
       if (firstName !== undefined) updates.firstName = firstName;
       if (lastName !== undefined) updates.lastName = lastName;
 
-      // Prevent updating any user to admin except the environment admin
+      const callerRole = await getUserRole(req.session.userId!);
+      const isCallerAdmin = callerRole === "admin";
+
       if (role !== undefined) {
-        // Get the user's email
+        if (!VALID_ROLES.includes(role)) {
+          return res.status(400).json({ error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}` });
+        }
+
         const allUsers = await getAllUsers();
         const targetUser = allUsers.find(u => u.id === req.params.id);
         if (!targetUser) return res.status(404).json({ error: "User not found" });
-        if (role === "admin" && (targetUser.email?.toLowerCase() !== String(process.env.ADMIN_EMAIL).toLowerCase())) {
-          return res.status(400).json({ error: "Only the environment admin can have the admin role" });
+
+        if (role === "admin" && !isCallerAdmin) {
+          return res.status(403).json({ error: "Only admins can assign the admin role" });
         }
-        updates.role = (role === "admin" && targetUser.email?.toLowerCase() === String(process.env.ADMIN_EMAIL).toLowerCase()) ? "admin" : (role === "manager" ? "manager" : "user");
+        if (role === "admin" && targetUser.email?.toLowerCase() !== String(process.env.ADMIN_EMAIL).toLowerCase()) {
+          return res.status(400).json({ error: "Only the environment admin email can have the admin role" });
+        }
+        if (!isCallerAdmin && targetUser.role === "admin") {
+          return res.status(403).json({ error: "Managers cannot modify admin accounts" });
+        }
+
+        updates.role = role;
       }
       if (password) updates.password = password;
 
-      // Get the user again for the update call
       const allUsersForUpdate = await getAllUsers();
       const userForUpdate = allUsersForUpdate.find((u) => u.id === req.params.id);
       if (!userForUpdate) return res.status(404).json({ error: "User not found" });
-      
+
+      if (!isCallerAdmin && userForUpdate.role === "admin") {
+        return res.status(403).json({ error: "Managers cannot modify admin accounts" });
+      }
+
       if (!userForUpdate.email) return res.status(400).json({ error: "User has no email" });
       const updated = await updateUser(userForUpdate.email, updates);
       if (!updated) return res.status(404).json({ error: "User not found" });
@@ -879,12 +868,21 @@ export async function registerRoutes(
     } catch { res.status(500).json({ error: "Failed to update user" }); }
   });
 
-  app.delete("/api/admin/users/:id", isAdmin, async (req, res) => {
+  app.delete("/api/admin/users/:id", isManager, async (req, res) => {
     try {
-      // Prevent self-deletion
       if (req.session.userId === req.params.id) {
         return res.status(400).json({ error: "Cannot delete your own account" });
       }
+
+      const callerRole = await getUserRole(req.session.userId!);
+      if (callerRole !== "admin") {
+        const allUsers = await getAllUsers();
+        const target = allUsers.find(u => u.id === req.params.id);
+        if (target?.role === "admin") {
+          return res.status(403).json({ error: "Managers cannot delete admin accounts" });
+        }
+      }
+
       const deleted = await deleteUserById(req.params.id);
       if (!deleted) return res.status(404).json({ error: "User not found" });
       res.status(204).send();

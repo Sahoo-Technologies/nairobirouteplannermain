@@ -15,7 +15,7 @@ export const sessions = pgTable(
 
 // User storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-// Roles: 'admin', 'manager', 'user'
+// Roles: admin, manager, driver, salesperson, finance, warehouse, user
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
@@ -23,7 +23,7 @@ export const users = pgTable("users", {
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   profileImageUrl: varchar("profile_image_url"),
-  role: varchar("role").default("user").notNull(), // 'admin', 'manager', 'user'
+  role: varchar("role").default("user").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

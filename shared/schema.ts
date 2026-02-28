@@ -357,16 +357,35 @@ export const insertParcelSchema = createInsertSchema(parcels).omit({ id: true, c
 export type InsertParcel = z.infer<typeof insertParcelSchema>;
 export type Parcel = typeof parcels.$inferSelect;
 
-// ============ PAYMENTS (MPESA) ============
+// ============ PAYMENTS ============
 export const payments = pgTable("payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   orderId: varchar("order_id").notNull(),
   parcelId: varchar("parcel_id"),
   amount: real("amount").notNull(),
-  mpesaReference: text("mpesa_reference"),
+  currency: text("currency").default("KES"),
+  paymentMethod: text("payment_method").default("cash"), // mpesa, flutterwave, crypto, cash
   phone: text("phone"),
-  status: text("status").notNull().default("pending"), // pending, received, confirmed, failed
-  confirmedBy: varchar("confirmed_by"), // finance dept user
+  status: text("status").notNull().default("pending"), // pending, processing, received, confirmed, failed, refunded
+
+  // M-Pesa fields
+  mpesaReference: text("mpesa_reference"),
+  mpesaReceiptNumber: text("mpesa_receipt_number"),
+
+  // Flutterwave fields
+  flutterwaveRef: text("flutterwave_ref"),
+  flutterwaveTxId: text("flutterwave_tx_id"),
+
+  // Crypto fields
+  cryptoTxHash: text("crypto_tx_hash"),
+  cryptoNetwork: text("crypto_network"),
+  cryptoAddress: text("crypto_address"),
+  cryptoAmountUsd: real("crypto_amount_usd"),
+
+  // Gateway metadata
+  gatewayResponse: jsonb("gateway_response"),
+
+  confirmedBy: varchar("confirmed_by"),
   confirmedAt: timestamp("confirmed_at"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`),
 });

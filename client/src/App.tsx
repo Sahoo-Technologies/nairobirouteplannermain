@@ -78,9 +78,9 @@ function AuthenticatedRouter() {
       <Route path="/salespersons" component={SalespersonsPage} />
       <Route path="/payments" component={PaymentsPage} />
       <Route path="/admin/users" component={() => (
-        <AdminRouteGuard>
+        <ManagerRouteGuard>
           <AdminUsersPage />
-        </AdminRouteGuard>
+        </ManagerRouteGuard>
       )} />
       <Route path="/admin/settings" component={() => (
         <AdminRouteGuard>

@@ -456,7 +456,7 @@ export function isAuthenticated(req: Request, res: Response, next: NextFunction)
 }
 
 /** Get user role by ID — checks both database and memory (for when DB unavailable) */
-async function getUserRole(userId: string): Promise<string | null> {
+export async function getUserRole(userId: string): Promise<string | null> {
   if (isDatabaseAvailable()) {
     try {
       const [row] = await db

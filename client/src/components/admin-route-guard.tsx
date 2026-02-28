@@ -61,7 +61,7 @@ interface ManagerRouteGuardProps {
 }
 
 export function ManagerRouteGuard({ children, fallback }: ManagerRouteGuardProps) {
-  const { user, isManager, isAdmin, isLoading, logout } = useAuth();
+  const { isManager, isLoading, logout } = useAuth();
 
   if (isLoading) {
     return (
@@ -71,7 +71,7 @@ export function ManagerRouteGuard({ children, fallback }: ManagerRouteGuardProps
     );
   }
 
-  if (!isManager && !isAdmin) {
+  if (!isManager) {
     if (fallback) {
       return <>{fallback}</>;
     }

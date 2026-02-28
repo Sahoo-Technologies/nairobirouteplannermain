@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain,
   Database, GitBranch, ClipboardList, PackageCheck, FileBarChart, Users,
   Settings, Package, Warehouse, Building2, ShoppingCart, UserCheck, CreditCard,
-  LayoutGrid, type LucideIcon,
+  LayoutGrid, Wallet, ChevronRight, type LucideIcon,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/use-auth";
-import { ChevronRight } from "lucide-react";
 
 interface NavItem {
   title: string;
@@ -28,6 +27,15 @@ interface NavGroup {
   items: NavItem[];
   defaultOpen?: boolean;
 }
+
+const ROLE_BADGE: Record<string, { label: string; icon: LucideIcon; className: string }> = {
+  admin:       { label: "Admin",       icon: Shield,    className: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300" },
+  manager:     { label: "Manager",     icon: Users,     className: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" },
+  driver:      { label: "Driver",      icon: Truck,     className: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" },
+  salesperson: { label: "Salesperson",  icon: UserCheck, className: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300" },
+  finance:     { label: "Finance",     icon: Wallet,    className: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
+  warehouse:   { label: "Warehouse",   icon: Warehouse, className: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300" },
+};
 
 const navGroups: NavGroup[] = [
   {
@@ -84,6 +92,14 @@ const adminGroup: NavGroup = {
   ],
 };
 
+const managerGroup: NavGroup = {
+  label: "Management",
+  defaultOpen: false,
+  items: [
+    { title: "User Management", url: "/admin/users", icon: Users },
+  ],
+};
+
 function NavGroupSection({ group }: { group: NavGroup }) {
   const [location] = useLocation();
   const hasActive = group.items.some((item) => item.url === location);
@@ -122,7 +138,7 @@ function NavGroupSection({ group }: { group: NavGroup }) {
 }
 
 export function AppSidebar() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, isAdmin, isManager, logout } = useAuth();
 
   const userInitials = user?.firstName && user?.lastName
     ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
@@ -131,6 +147,8 @@ export function AppSidebar() {
   const userName = user?.firstName && user?.lastName
     ? `${user.firstName} ${user.lastName}`
     : user?.email || "User";
+
+  const roleBadge = user?.role ? ROLE_BADGE[user.role] : null;
 
   return (
     <Sidebar>
@@ -151,6 +169,7 @@ export function AppSidebar() {
           <NavGroupSection key={group.label} group={group} />
         ))}
         {isAdmin && <NavGroupSection group={adminGroup} />}
+        {!isAdmin && isManager && <NavGroupSection group={managerGroup} />}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-3">
@@ -166,14 +185,13 @@ export function AppSidebar() {
               <p className="truncate text-sm font-medium" data-testid="text-user-name">
                 {userName}
               </p>
-              {isAdmin && (
+              {roleBadge && (
                 <Badge
-                  variant="secondary"
-                  className="h-[18px] gap-1 px-1.5 text-[10px]"
-                  data-testid="badge-admin"
+                  className={`h-[18px] gap-1 px-1.5 text-[10px] ${roleBadge.className}`}
+                  data-testid="badge-role"
                 >
-                  <Shield className="h-2.5 w-2.5" />
-                  Admin
+                  <roleBadge.icon className="h-2.5 w-2.5" />
+                  {roleBadge.label}
                 </Badge>
               )}
             </div>
