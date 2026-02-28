@@ -34,16 +34,19 @@ export async function setupAuth(app: Express) {
   let sessionStore;
   if (isDatabaseAvailable()) {
     try {
-      // Try to use PostgreSQL session store
+      // PostgreSQL session store required for serverless (Vercel); MemoryStore loses sessions across instances
       sessionStore = new PgSessionStore({
         pool,
         tableName: "sessions",
-        createTableIfMissing: false,
+        createTableIfMissing: true, // Ensure table exists (connect-pg-simple creates sid, sess, expire)
       });
       console.log("✅ Using PostgreSQL session store");
     } catch (error) {
       console.error("⚠️  Failed to create PostgreSQL session store, falling back to memory:", error);
-      // Fallback to memory store
+      // In production/serverless, memory store will cause 401 on cold starts - warn loudly
+      if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+        console.error("⚠️  PRODUCTION WARNING: MemoryStore will not persist sessions across serverless invocations. Admin/auth requests may return 401 on cold starts.");
+      }
       sessionStore = new (await import('express-session')).MemoryStore();
       console.log("⚠️  Using in-memory session store (sessions will be lost on restart)");
     }
