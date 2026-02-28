@@ -1,4 +1,4 @@
-import { LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain, Database, GitBranch, ClipboardList, PackageCheck, FileBarChart, Users, Settings, FileText, Package, Warehouse, Building2, ShoppingCart, UserCheck, CreditCard } from "lucide-react";
+import { LayoutDashboard, Store, Truck, Route, Target, Map, LogOut, Shield, Brain, Database, GitBranch, ClipboardList, PackageCheck, FileBarChart, Users, Settings, FileText, Package, Warehouse, Building2, ShoppingCart, UserCheck, CreditCard, LayoutGrid } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import {
   Sidebar,
@@ -115,21 +115,10 @@ const inventoryItems = [
 ];
 
 const adminItems = [
-  {
-    title: "User Management",
-    url: "/admin/users",
-    icon: Users,
-  },
-  {
-    title: "Settings",
-    url: "/admin/settings",
-    icon: Settings,
-  },
-  {
-    title: "Backup",
-    url: "/backup",
-    icon: Database,
-  },
+  { title: "Overview", url: "/admin", icon: LayoutGrid },
+  { title: "User Management", url: "/admin/users", icon: Users },
+  { title: "Settings", url: "/admin/settings", icon: Settings },
+  { title: "Backup", url: "/backup", icon: Database },
 ];
 
 export function AppSidebar() {

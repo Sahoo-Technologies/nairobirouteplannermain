@@ -1,16 +1,28 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { AdminLayout } from "@/components/admin/admin-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Settings, Save, Database, Mail, Shield, Brain,
-  Clock, Eye, EyeOff, AlertCircle, CheckCircle2, Key
+  Settings,
+  Save,
+  Database,
+  Mail,
+  Shield,
+  Brain,
+  Clock,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Key,
+  Lock,
 } from "lucide-react";
 
 interface SettingsResponse {
@@ -20,46 +32,56 @@ interface SettingsResponse {
 
 const SECTIONS = [
   {
+    id: "database",
     title: "Database",
     icon: Database,
-    description: "PostgreSQL connection string",
+    description: "PostgreSQL connection",
     keys: ["DATABASE_URL"],
   },
   {
+    id: "auth",
     title: "Authentication",
     icon: Shield,
-    description: "Session secret, default admin credentials",
+    description: "Session & admin credentials",
     keys: ["SESSION_SECRET", "ADMIN_EMAIL", "AI_ADMIN_PASSWORD"],
   },
   {
+    id: "email",
     title: "Email (SMTP)",
     icon: Mail,
-    description: "Outgoing email for password resets & notifications",
+    description: "Password resets & notifications",
     keys: ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "SMTP_FROM"],
   },
   {
+    id: "ai",
     title: "AI / OpenAI",
     icon: Brain,
-    description: "OpenAI API key for route optimization & analytics",
+    description: "Route optimization & analytics",
     keys: ["AI_INTEGRATIONS_OPENAI_API_KEY", "AI_INTEGRATIONS_OPENAI_BASE_URL"],
   },
   {
+    id: "jobs",
     title: "Scheduled Jobs",
     icon: Clock,
-    description: "Cron secret for automated backups",
+    description: "Cron backup authentication",
     keys: ["CRON_SECRET"],
   },
   {
+    id: "security",
     title: "Security",
-    icon: Key,
-    description: "CORS allowed origins (comma-separated)",
+    icon: Lock,
+    description: "CORS allowed origins",
     keys: ["CORS_ORIGIN"],
   },
 ];
 
 const SECRET_KEYS = new Set([
-  "DATABASE_URL", "SESSION_SECRET", "AI_ADMIN_PASSWORD",
-  "SMTP_PASS", "AI_INTEGRATIONS_OPENAI_API_KEY", "CRON_SECRET",
+  "DATABASE_URL",
+  "SESSION_SECRET",
+  "AI_ADMIN_PASSWORD",
+  "SMTP_PASS",
+  "AI_INTEGRATIONS_OPENAI_API_KEY",
+  "CRON_SECRET",
 ]);
 
 export default function SettingsPage() {
@@ -122,124 +144,160 @@ export default function SettingsPage() {
 
   if (isError) {
     return (
-      <div className="flex flex-col gap-6 p-6">
+      <AdminLayout title="Settings">
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Error</AlertTitle>
-          <AlertDescription>Failed to load settings. Make sure you have admin access.</AlertDescription>
+          <AlertDescription>
+            Failed to load settings. Make sure you have admin access.
+          </AlertDescription>
         </Alert>
-      </div>
+      </AdminLayout>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Settings className="h-6 w-6" />
-            Settings
-          </h1>
-          <p className="text-muted-foreground">
-            Configure environment variables and API keys. Changes are applied immediately and persisted to <code className="text-xs bg-muted px-1 rounded">.env</code>.
-          </p>
+    <AdminLayout
+      title="Settings"
+      description="Configure environment variables and API keys"
+    >
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          {dirty && (
+            <Alert className="flex-1">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Unsaved changes</AlertTitle>
+              <AlertDescription>
+                You have modified settings. Click &quot;Save Changes&quot; to apply.
+              </AlertDescription>
+            </Alert>
+          )}
+          <Button
+            onClick={() => saveMutation.mutate(values)}
+            disabled={!dirty || saveMutation.isPending}
+            className="shrink-0"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {saveMutation.isPending ? "Saving..." : "Save Changes"}
+          </Button>
         </div>
-        <Button
-          onClick={() => saveMutation.mutate(values)}
-          disabled={!dirty || saveMutation.isPending}
-        >
-          <Save className="mr-2 h-4 w-4" />
-          {saveMutation.isPending ? "Saving..." : "Save Changes"}
-        </Button>
+
+        {isLoading ? (
+          <div className="space-y-6">
+            <Skeleton className="h-10 w-64" />
+            <div className="grid gap-4 md:grid-cols-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-48" />
+              ))}
+            </div>
+          </div>
+        ) : (
+          <Tabs defaultValue={SECTIONS[0].id} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-2 bg-muted/50 sm:grid-cols-3 lg:grid-cols-6">
+              {SECTIONS.map((section) => (
+                <TabsTrigger
+                  key={section.id}
+                  value={section.id}
+                  className="flex items-center gap-2"
+                >
+                  <section.icon className="h-4 w-4" />
+                  <span className="hidden sm:inline">{section.title}</span>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+
+            {SECTIONS.map((section) => (
+              <TabsContent key={section.id} value={section.id} className="mt-0 space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <section.icon className="h-5 w-5" />
+                      {section.title}
+                    </CardTitle>
+                    <CardDescription>{section.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {section.keys.map((key) => {
+                      const isSecret = SECRET_KEYS.has(key);
+                      const show = showSecrets[key];
+                      const val = values[key] || "";
+                      const isMasked = val.startsWith("****");
+                      const isSet = val !== "" && val !== "****";
+
+                      return (
+                        <div key={key} className="space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor={key} className="font-mono text-xs">
+                              {key}
+                            </Label>
+                            {val && val !== "" && (
+                              <Badge
+                                variant={isMasked ? "secondary" : "default"}
+                                className="text-[10px] h-5"
+                              >
+                                {isMasked ? "hidden" : isSet ? "configured" : "empty"}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="relative">
+                            {isSecret && (
+                              <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                                onClick={() => toggleVisibility(key)}
+                              >
+                                {show ? (
+                                  <EyeOff className="h-4 w-4" />
+                                ) : (
+                                  <Eye className="h-4 w-4" />
+                                )}
+                              </button>
+                            )}
+                            <Input
+                              id={key}
+                              type={isSecret && !show ? "password" : "text"}
+                              value={val}
+                              onChange={(e) => handleChange(key, e.target.value)}
+                              placeholder={getPlaceholder(key)}
+                              className="pr-10 font-mono text-sm"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground">{getHint(key)}</p>
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            ))}
+          </Tabs>
+        )}
+
+        <Card className="border-dashed">
+          <CardContent className="flex items-start gap-3 p-6">
+            <Key className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+            <div className="text-sm text-muted-foreground">
+              <p className="font-medium text-foreground">How secrets are handled</p>
+              <ul className="mt-1 list-disc space-y-1 pl-4">
+                <li>
+                  Secrets are masked with <code className="rounded bg-muted px-1">****</code> —
+                  paste a new value to replace.
+                </li>
+                <li>Leaving a masked field unchanged will keep the existing value.</li>
+                <li>
+                  Settings are applied to the running process and written to{" "}
+                  <code className="rounded bg-muted px-1">.env</code>.
+                </li>
+                <li>
+                  A server restart may be needed for some settings (e.g. DATABASE_URL,
+                  SESSION_SECRET).
+                </li>
+              </ul>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-
-      {dirty && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Unsaved changes</AlertTitle>
-          <AlertDescription>You have modified settings. Click "Save Changes" to apply.</AlertDescription>
-        </Alert>
-      )}
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          Loading settings...
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {SECTIONS.map((section) => (
-            <Card key={section.title}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <section.icon className="h-5 w-5" />
-                  {section.title}
-                </CardTitle>
-                <CardDescription>{section.description}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {section.keys.map((key) => {
-                  const isSecret = SECRET_KEYS.has(key);
-                  const show = showSecrets[key];
-                  const val = values[key] || "";
-                  const isMasked = val.startsWith("****");
-                  const isSet = val !== "" && val !== "****";
-
-                  return (
-                    <div key={key} className="space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor={key} className="font-mono text-xs">
-                          {key}
-                        </Label>
-                        {val && val !== "" && (
-                          <Badge variant={isMasked ? "secondary" : "default"} className="text-[10px] h-4">
-                            {isMasked ? "set (hidden)" : isSet ? "configured" : "empty"}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="relative">
-                        {isSecret && (
-                          <button
-                            type="button"
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                            onClick={() => toggleVisibility(key)}
-                          >
-                            {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        )}
-                        <Input
-                          id={key}
-                          type={isSecret && !show ? "password" : "text"}
-                          value={val}
-                          onChange={(e) => handleChange(key, e.target.value)}
-                          placeholder={getPlaceholder(key)}
-                          className="pr-10 font-mono text-sm"
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{getHint(key)}</p>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          ))}
-
-          <Card className="border-dashed">
-            <CardContent className="flex items-start gap-3 p-4">
-              <Key className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div className="text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">How secrets are handled</p>
-                <ul className="mt-1 list-disc pl-4 space-y-1">
-                  <li>Secrets are masked with <code className="bg-muted px-1 rounded">****</code> — paste a new value to replace.</li>
-                  <li>Leaving a masked field unchanged will keep the existing value.</li>
-                  <li>Settings are applied to the running process and written to <code className="bg-muted px-1 rounded">.env</code>.</li>
-                  <li>A server restart may be needed for some settings (e.g. DATABASE_URL, SESSION_SECRET).</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
+    </AdminLayout>
   );
 }
 
@@ -263,18 +321,24 @@ function getPlaceholder(key: string): string {
 
 function getHint(key: string): string {
   const map: Record<string, string> = {
-    DATABASE_URL: "PostgreSQL connection string. Required for production data persistence.",
+    DATABASE_URL:
+      "PostgreSQL connection string. Required for production data persistence.",
     SESSION_SECRET: "Used to sign session cookies. Must be a long random string.",
-    ADMIN_EMAIL: "Default admin account email. Created on startup if AI_ADMIN_PASSWORD is set.",
-    AI_ADMIN_PASSWORD: "Password for the default admin account. Set this to auto-create the admin user.",
+    ADMIN_EMAIL:
+      "Default admin account email. Created on startup if AI_ADMIN_PASSWORD is set.",
+    AI_ADMIN_PASSWORD:
+      "Password for the default admin account. Set this to auto-create the admin user.",
     CRON_SECRET: "Bearer token for the /api/backup/cron endpoint (Vercel Cron).",
     SMTP_HOST: "SMTP server hostname for sending emails.",
     SMTP_PORT: "SMTP port (usually 587 for TLS, 465 for SSL).",
     SMTP_USER: "SMTP authentication username (often your email address).",
     SMTP_PASS: "SMTP authentication password or app-specific password.",
-    SMTP_FROM: "The 'From' address shown on outgoing emails. Defaults to SMTP_USER.",
-    AI_INTEGRATIONS_OPENAI_API_KEY: "OpenAI API key for route optimization and demand forecasting.",
-    AI_INTEGRATIONS_OPENAI_BASE_URL: "Custom base URL for OpenAI-compatible APIs (leave empty for default).",
+    SMTP_FROM:
+      "The 'From' address shown on outgoing emails. Defaults to SMTP_USER.",
+    AI_INTEGRATIONS_OPENAI_API_KEY:
+      "OpenAI API key for route optimization and demand forecasting.",
+    AI_INTEGRATIONS_OPENAI_BASE_URL:
+      "Custom base URL for OpenAI-compatible APIs (leave empty for default).",
   };
   return map[key] || "";
 }

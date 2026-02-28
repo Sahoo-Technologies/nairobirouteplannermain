@@ -31,6 +31,7 @@ const ProcessMapPage = lazy(() => import("@/pages/process-map"));
 const OrdersPage = lazy(() => import("@/pages/orders"));
 const DispatchPage = lazy(() => import("@/pages/dispatch"));
 const ReportsPage = lazy(() => import("@/pages/reports"));
+const AdminDashboardPage = lazy(() => import("@/pages/admin-dashboard"));
 const AdminUsersPage = lazy(() => import("@/pages/admin-users"));
 const SettingsPage = lazy(() => import("@/pages/settings"));
 const PrivacyPolicyPage = lazy(() => import("@/pages/privacy-policy"));
@@ -51,7 +52,16 @@ function AuthenticatedRouter() {
       <Route path="/routes" component={RoutesPage} />
       <Route path="/targets" component={TargetsPage} />
       <Route path="/analytics" component={AnalyticsPage} />
-      <Route path="/backup" component={BackupPage} />
+      <Route path="/admin" component={() => (
+        <AdminRouteGuard>
+          <AdminDashboardPage />
+        </AdminRouteGuard>
+      )} />
+      <Route path="/backup" component={() => (
+        <AdminRouteGuard>
+          <BackupPage />
+        </AdminRouteGuard>
+      )} />
       <Route path="/process-map" component={ProcessMapPage} />
       <Route path="/orders" component={OrdersPage} />
       <Route path="/dispatch" component={DispatchPage} />
