@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchList } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/use-auth";
 import {
   Users,
   Settings,
@@ -31,6 +32,8 @@ interface HealthResponse {
 }
 
 export default function AdminDashboard() {
+  const { isAdmin } = useAuth();
+
   const { data: usersList = [], isLoading } = useQuery<Record<string, unknown>[]>({
     queryKey: ["/api/admin/users"],
     queryFn: () => fetchList<Record<string, unknown>>("/api/admin/users"),
@@ -85,43 +88,47 @@ export default function AdminDashboard() {
           </Card>
         </Link>
 
-        <Link href="/admin/settings">
-          <Card className="transition-colors hover:border-primary/50 hover:bg-muted/30 cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Settings</CardTitle>
-              <Settings className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Environment</div>
-              <p className="text-xs text-muted-foreground">
-                Database, Auth, AI, Email config
-              </p>
-              <Button variant="ghost" size="sm" className="mt-2 -ml-2">
-                Configure
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
+        {isAdmin && (
+          <Link href="/admin/settings">
+            <Card className="transition-colors hover:border-primary/50 hover:bg-muted/30 cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Settings</CardTitle>
+                <Settings className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Environment</div>
+                <p className="text-xs text-muted-foreground">
+                  Database, Auth, AI, Email config
+                </p>
+                <Button variant="ghost" size="sm" className="mt-2 -ml-2">
+                  Configure
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
-        <Link href="/backup">
-          <Card className="transition-colors hover:border-primary/50 hover:bg-muted/30 cursor-pointer h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Data Backup</CardTitle>
-              <Database className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Backup</div>
-              <p className="text-xs text-muted-foreground">
-                Manual & automated backups
-              </p>
-              <Button variant="ghost" size="sm" className="mt-2 -ml-2">
-                Backup data
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
-        </Link>
+        {isAdmin && (
+          <Link href="/backup">
+            <Card className="transition-colors hover:border-primary/50 hover:bg-muted/30 cursor-pointer h-full">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Data Backup</CardTitle>
+                <Database className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">Backup</div>
+                <p className="text-xs text-muted-foreground">
+                  Manual & automated backups
+                </p>
+                <Button variant="ghost" size="sm" className="mt-2 -ml-2">
+                  Backup data
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
         </div>
 
         {/* Database connection status */}
@@ -192,18 +199,22 @@ export default function AdminDashboard() {
                 Create User
               </Link>
             </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/admin/settings">
-                <Settings className="mr-2 h-4 w-4" />
-                Edit Settings
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/backup">
-                <Database className="mr-2 h-4 w-4" />
-                Download Backup
-              </Link>
-            </Button>
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/admin/settings">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Edit Settings
+                </Link>
+              </Button>
+            )}
+            {isAdmin && (
+              <Button asChild variant="outline" size="sm">
+                <Link href="/backup">
+                  <Database className="mr-2 h-4 w-4" />
+                  Download Backup
+                </Link>
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -222,7 +233,7 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center gap-3 text-sm">
               <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
-              <span>Role-based access control (Admin, Manager, User)</span>
+              <span>Role-based access control (Admin, Manager, Driver, Salesperson, Finance, Warehouse)</span>
             </div>
             <div className="flex items-center gap-3 text-sm">
               <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />

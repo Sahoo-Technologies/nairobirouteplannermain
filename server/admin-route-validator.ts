@@ -63,14 +63,14 @@ export class AdminRouteValidator {
         line: 61
       },
 
-      // User management routes
+      // User management routes (isManager: both admin & manager)
       {
         method: 'GET',
         path: '/api/admin/users',
-        middleware: ['isAdmin'],
+        middleware: ['isManager'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 668
+        line: 764
       },
       {
         method: 'POST',
@@ -78,49 +78,41 @@ export class AdminRouteValidator {
         middleware: ['isManager'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 685
+        line: 773
       },
       {
         method: 'PATCH',
         path: '/api/admin/users/:id',
-        middleware: ['isAdmin'],
+        middleware: ['isManager'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 733
+        line: 821
       },
       {
         method: 'DELETE',
         path: '/api/admin/users/:id',
-        middleware: ['isAdmin'],
+        middleware: ['isManager'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 760
+        line: 871
       },
 
-      // Settings routes
+      // Settings routes (isAdmin only)
       {
         method: 'GET',
         path: '/api/admin/settings',
         middleware: ['isAdmin'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 773
-      },
-      {
-        method: 'GET',
-        path: '/api/admin/settings/:name',
-        middleware: ['isAdmin'],
-        handler: 'anonymous',
-        file: 'routes.ts',
-        line: 785
+        line: 893
       },
       {
         method: 'PUT',
-        path: '/api/admin/settings/:name',
+        path: '/api/admin/settings',
         middleware: ['isAdmin'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 803
+        line: 908
       },
       {
         method: 'GET',
@@ -128,7 +120,23 @@ export class AdminRouteValidator {
         middleware: ['isAdmin'],
         handler: 'anonymous',
         file: 'routes.ts',
-        line: 823
+        line: 931
+      },
+      {
+        method: 'GET',
+        path: '/api/admin/settings/:name',
+        middleware: ['isAdmin'],
+        handler: 'anonymous',
+        file: 'routes.ts',
+        line: 942
+      },
+      {
+        method: 'PUT',
+        path: '/api/admin/settings/:name',
+        middleware: ['isAdmin'],
+        handler: 'anonymous',
+        file: 'routes.ts',
+        line: 960
       },
 
       // Backup routes

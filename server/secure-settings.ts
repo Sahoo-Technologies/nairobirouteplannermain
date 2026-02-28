@@ -119,6 +119,87 @@ const SETTINGS_CONFIG: SettingConfig[] = [
     description: "OpenAI API base URL",
   },
 
+  // M-Pesa (Safaricom Daraja)
+  {
+    name: "MPESA_CONSUMER_KEY",
+    sensitive: true,
+    editable: true,
+    description: "Safaricom Daraja consumer key",
+  },
+  {
+    name: "MPESA_CONSUMER_SECRET",
+    sensitive: true,
+    editable: true,
+    description: "Safaricom Daraja consumer secret",
+  },
+  {
+    name: "MPESA_SHORTCODE",
+    sensitive: false,
+    editable: true,
+    description: "M-Pesa business short code",
+    validator: (value) => /^\d+$/.test(value),
+  },
+  {
+    name: "MPESA_PASSKEY",
+    sensitive: true,
+    editable: true,
+    description: "Lipa Na M-Pesa passkey",
+  },
+  {
+    name: "MPESA_CALLBACK_URL",
+    sensitive: false,
+    editable: true,
+    description: "M-Pesa callback URL (must be HTTPS)",
+    validator: (value) => value.startsWith("https://"),
+  },
+  {
+    name: "MPESA_ENVIRONMENT",
+    sensitive: false,
+    editable: true,
+    description: "M-Pesa environment (sandbox or production)",
+    validator: (value) => ["sandbox", "production"].includes(value),
+  },
+
+  // Flutterwave
+  {
+    name: "FLUTTERWAVE_PUBLIC_KEY",
+    sensitive: false,
+    editable: true,
+    description: "Flutterwave public key",
+  },
+  {
+    name: "FLUTTERWAVE_SECRET_KEY",
+    sensitive: true,
+    editable: true,
+    description: "Flutterwave secret key",
+  },
+  {
+    name: "FLUTTERWAVE_ENCRYPTION_KEY",
+    sensitive: true,
+    editable: true,
+    description: "Flutterwave encryption key",
+  },
+  {
+    name: "FLUTTERWAVE_WEBHOOK_SECRET",
+    sensitive: true,
+    editable: true,
+    description: "Flutterwave webhook secret hash",
+  },
+
+  // Coinbase Commerce (Crypto)
+  {
+    name: "COINBASE_COMMERCE_API_KEY",
+    sensitive: true,
+    editable: true,
+    description: "Coinbase Commerce API key",
+  },
+  {
+    name: "COINBASE_COMMERCE_WEBHOOK_SECRET",
+    sensitive: true,
+    editable: true,
+    description: "Coinbase Commerce webhook shared secret",
+  },
+
   // CORS
   {
     name: "CORS_ORIGIN",

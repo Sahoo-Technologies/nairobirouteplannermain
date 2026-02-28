@@ -9,12 +9,20 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { Users, Settings, Database, LayoutDashboard } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
-const ADMIN_NAV = [
+interface NavTab {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  adminOnly?: boolean;
+}
+
+const ADMIN_NAV: NavTab[] = [
   { href: "/admin", label: "Overview", icon: LayoutDashboard },
   { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-  { href: "/backup", label: "Backup", icon: Database },
+  { href: "/admin/settings", label: "Settings", icon: Settings, adminOnly: true },
+  { href: "/backup", label: "Backup", icon: Database, adminOnly: true },
 ];
 
 function getBreadcrumbs(path: string): { label: string; href?: string }[] {
@@ -38,7 +46,10 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children, title, description }: AdminLayoutProps) {
   const [location] = useLocation();
+  const { isAdmin } = useAuth();
   const breadcrumbs = getBreadcrumbs(location);
+
+  const visibleTabs = ADMIN_NAV.filter((tab) => !tab.adminOnly || isAdmin);
 
   return (
     <div className="flex flex-col gap-6 p-6 lg:p-8">
@@ -75,7 +86,7 @@ export function AdminLayout({ children, title, description }: AdminLayoutProps) 
           className="inline-flex h-10 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground"
         >
           <div className="flex flex-wrap gap-1">
-            {ADMIN_NAV.map((item) => {
+            {visibleTabs.map((item) => {
               const isActive =
                 location === item.href ||
                 (item.href !== "/admin" && location.startsWith(item.href));

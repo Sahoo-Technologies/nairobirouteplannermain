@@ -58,9 +58,9 @@ function AuthenticatedRouter() {
       <Route path="/targets" component={TargetsPage} />
       <Route path="/analytics" component={AnalyticsPage} />
       <Route path="/admin" component={() => (
-        <AdminRouteGuard>
+        <ManagerRouteGuard>
           <AdminDashboardPage />
-        </AdminRouteGuard>
+        </ManagerRouteGuard>
       )} />
       <Route path="/backup" component={() => (
         <AdminRouteGuard>

@@ -24,6 +24,9 @@ import {
   AlertCircle,
   Key,
   Lock,
+  Smartphone,
+  CreditCard,
+  Bitcoin,
 } from "lucide-react";
 
 interface SettingsResponse {
@@ -68,6 +71,39 @@ const SECTIONS = [
     keys: ["CRON_SECRET"],
   },
   {
+    id: "mpesa",
+    title: "M-Pesa",
+    icon: Smartphone,
+    description: "Safaricom Daraja STK Push",
+    keys: [
+      "MPESA_CONSUMER_KEY",
+      "MPESA_CONSUMER_SECRET",
+      "MPESA_SHORTCODE",
+      "MPESA_PASSKEY",
+      "MPESA_CALLBACK_URL",
+      "MPESA_ENVIRONMENT",
+    ],
+  },
+  {
+    id: "flutterwave",
+    title: "Flutterwave",
+    icon: CreditCard,
+    description: "Card, USSD & bank payments",
+    keys: [
+      "FLUTTERWAVE_PUBLIC_KEY",
+      "FLUTTERWAVE_SECRET_KEY",
+      "FLUTTERWAVE_ENCRYPTION_KEY",
+      "FLUTTERWAVE_WEBHOOK_SECRET",
+    ],
+  },
+  {
+    id: "crypto",
+    title: "Crypto",
+    icon: Bitcoin,
+    description: "Coinbase Commerce payments",
+    keys: ["COINBASE_COMMERCE_API_KEY", "COINBASE_COMMERCE_WEBHOOK_SECRET"],
+  },
+  {
     id: "security",
     title: "Security",
     icon: Lock,
@@ -83,6 +119,14 @@ const SECRET_KEYS = new Set([
   "SMTP_PASS",
   "AI_INTEGRATIONS_OPENAI_API_KEY",
   "CRON_SECRET",
+  "MPESA_CONSUMER_KEY",
+  "MPESA_CONSUMER_SECRET",
+  "MPESA_PASSKEY",
+  "FLUTTERWAVE_SECRET_KEY",
+  "FLUTTERWAVE_ENCRYPTION_KEY",
+  "FLUTTERWAVE_WEBHOOK_SECRET",
+  "COINBASE_COMMERCE_API_KEY",
+  "COINBASE_COMMERCE_WEBHOOK_SECRET",
 ]);
 
 export default function SettingsPage() {
@@ -197,7 +241,7 @@ export default function SettingsPage() {
           </div>
         ) : (
           <Tabs defaultValue={SECTIONS[0].id} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2 bg-muted/50 sm:grid-cols-3 lg:grid-cols-6">
+            <TabsList className="grid w-full grid-cols-3 bg-muted/50 sm:grid-cols-5 lg:grid-cols-9">
               {SECTIONS.map((section) => (
                 <TabsTrigger
                   key={section.id}
@@ -319,6 +363,19 @@ function getPlaceholder(key: string): string {
     SMTP_FROM: "noreply@yourdomain.com",
     AI_INTEGRATIONS_OPENAI_API_KEY: "sk-...",
     AI_INTEGRATIONS_OPENAI_BASE_URL: "https://api.openai.com/v1",
+    MPESA_CONSUMER_KEY: "Your Daraja consumer key",
+    MPESA_CONSUMER_SECRET: "Your Daraja consumer secret",
+    MPESA_SHORTCODE: "174379",
+    MPESA_PASSKEY: "Your Daraja passkey",
+    MPESA_CALLBACK_URL: "https://yourdomain.com/api/payments/mpesa/callback",
+    MPESA_ENVIRONMENT: "sandbox",
+    FLUTTERWAVE_PUBLIC_KEY: "FLWPUBK-...",
+    FLUTTERWAVE_SECRET_KEY: "FLWSECK-...",
+    FLUTTERWAVE_ENCRYPTION_KEY: "Your encryption key",
+    FLUTTERWAVE_WEBHOOK_SECRET: "Your webhook secret hash",
+    COINBASE_COMMERCE_API_KEY: "Your Coinbase Commerce API key",
+    COINBASE_COMMERCE_WEBHOOK_SECRET: "Your webhook shared secret",
+    CORS_ORIGIN: "https://yourdomain.com",
   };
   return map[key] || "";
 }
@@ -343,6 +400,32 @@ function getHint(key: string): string {
       "OpenAI API key for route optimization and demand forecasting.",
     AI_INTEGRATIONS_OPENAI_BASE_URL:
       "Custom base URL for OpenAI-compatible APIs (leave empty for default).",
+    MPESA_CONSUMER_KEY:
+      "Consumer key from your Safaricom Daraja developer portal app.",
+    MPESA_CONSUMER_SECRET:
+      "Consumer secret from your Safaricom Daraja developer portal app.",
+    MPESA_SHORTCODE:
+      "Your M-Pesa business short code (till/paybill number). Use 174379 for sandbox.",
+    MPESA_PASSKEY:
+      "Lipa Na M-Pesa passkey from Daraja. Used to generate STK Push passwords.",
+    MPESA_CALLBACK_URL:
+      "Public URL where Safaricom will send payment confirmations. Must be HTTPS.",
+    MPESA_ENVIRONMENT:
+      "'sandbox' for testing, 'production' for live transactions.",
+    FLUTTERWAVE_PUBLIC_KEY:
+      "Public key from your Flutterwave dashboard. Used on the client side.",
+    FLUTTERWAVE_SECRET_KEY:
+      "Secret key from your Flutterwave dashboard. Never expose this client-side.",
+    FLUTTERWAVE_ENCRYPTION_KEY:
+      "Encryption key from Flutterwave for payload encryption.",
+    FLUTTERWAVE_WEBHOOK_SECRET:
+      "Webhook secret hash for verifying Flutterwave webhook signatures.",
+    COINBASE_COMMERCE_API_KEY:
+      "API key from Coinbase Commerce dashboard for creating charges.",
+    COINBASE_COMMERCE_WEBHOOK_SECRET:
+      "Shared secret for verifying Coinbase Commerce webhook signatures.",
+    CORS_ORIGIN:
+      "Allowed origin(s) for cross-origin requests. Use your frontend domain.",
   };
   return map[key] || "";
 }
